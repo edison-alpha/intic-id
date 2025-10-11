@@ -54,7 +54,7 @@ const CTA = () => {
           
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <a href="#contact" className="button-primary group flex items-center justify-center w-full sm:w-auto">
-              Request Early Access
+              Launch App
               <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
             </a>
             <a href="#" className="button-secondary w-full sm:w-auto text-center">

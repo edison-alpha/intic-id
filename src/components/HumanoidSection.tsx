@@ -101,7 +101,7 @@ const HumanoidSection = () => {
             </div>
             
             <h2 className="section-title text-3xl sm:text-4xl md:text-5xl font-display font-bold mb-1 md:mb-2">
-              Why NFT Tickets
+              Why intic
             </h2>
           </div>
           
