@@ -10,7 +10,7 @@ const SpecsSection = () => {
           <div className="flex items-center gap-4">
             <div className="pulse-chip">
               <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-pulse-500 text-white mr-2">3</span>
-              <span>Specs</span>
+              <span>Features</span>
             </div>
           </div>
           <div className="flex-1 h-[1px] bg-gray-300"></div>
@@ -20,7 +20,7 @@ const SpecsSection = () => {
         <div className="max-w-5xl pl-4 sm:pl-8">
           <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-display leading-tight mb-8 sm:mb-12">
             <span className="block bg-clip-text text-transparent bg-[url('/text-mask-image.jpg')] bg-cover bg-center">
-              Atlas works with your team, not instead of it. By handling repetitive tasks, improving safety conditions, and learning from every interaction, Atlas helps humans focus on what they do best: create, solve, and innovate.
+              NFT tickets revolutionize event access with blockchain security. Each ticket is a unique digital asset that proves authenticity, enables seamless transfers, and creates new possibilities for fan engagement and event monetization.
             </span>
           </h2>
         </div>

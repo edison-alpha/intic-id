@@ -10,27 +10,27 @@ interface TestimonialProps {
 }
 
 const testimonials: TestimonialProps[] = [{
-  content: "Atlas transformed our production line, handling repetitive tasks while our team focuses on innovation. 30% increase in output within three months.",
-  author: "Sarah Chen",
-  role: "VP of Operations, Axion Manufacturing",
+  content: "NFT tickets eliminated fraud at our events completely. The blockchain verification is instant and fans love collecting unique digital memorabilia.",
+  author: "Maria Santos",
+  role: "Event Director, MusicFest Global",
   gradient: "from-blue-700 via-indigo-800 to-purple-900",
   backgroundImage: "/background-section1.png"
 }, {
-  content: "Implementing Atlas in our fulfillment centers reduced workplace injuries by 40% while improving order accuracy. The learning capabilities are remarkable.",
-  author: "Michael Rodriguez",
-  role: "Director of Logistics, GlobalShip",
+  content: "The secondary market feature changed everything. Our fans can safely trade tickets and we earn royalties on every transfer. It's a win-win.",
+  author: "David Park",
+  role: "CEO, Sports Arena Network",
   gradient: "from-indigo-900 via-purple-800 to-orange-500",
   backgroundImage: "/background-section2.png"
 }, {
-  content: "Atlas adapted to our lab protocols faster than any system we've used. It's like having another researcher who never gets tired and maintains perfect precision.",
-  author: "Dr. Amara Patel",
-  role: "Lead Scientist, BioAdvance Research",
+  content: "Stack blockchain provides the perfect balance of speed and security. Our attendees appreciate the seamless experience and true ownership.",
+  author: "Alex Rivera",
+  role: "Head of Digital, Concert Venues Inc",
   gradient: "from-purple-800 via-pink-700 to-red-500",
   backgroundImage: "/background-section3.png"
 }, {
-  content: "As a mid-size business, we never thought advanced robotics would be accessible to us. Atlas changed that equation entirely with its versatility and ease of deployment.",
-  author: "Jason Lee",
-  role: "CEO, Innovative Solutions Inc.",
+  content: "Implementing NFT tickets reduced our operational costs by 60% while creating new revenue streams through royalties and fan engagement features.",
+  author: "Jennifer Lee",
+  role: "CFO, Entertainment Productions",
   gradient: "from-orange-600 via-red-500 to-purple-600",
   backgroundImage: "/background-section1.png"
 }];
