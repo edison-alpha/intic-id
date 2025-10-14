@@ -30,7 +30,7 @@ export const TurnkeyAuthModal: React.FC<TurnkeyAuthModalProps> = ({
             <Wallet className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Welcome to Stacks
+            Welcome to intic.id
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             Secure wallet authentication powered by Turnkey

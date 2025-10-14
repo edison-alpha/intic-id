@@ -105,22 +105,22 @@ const Hero = () => {
               className="pulse-chip mb-3 sm:mb-6 opacity-0 animate-fade-in" 
               style={{ animationDelay: "0.1s" }}
             >
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-pulse-500 text-white mr-2">01</span>
-              <span>Web3 Ticketing</span>
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-pulse-500 text-white mr-2">✓</span>
+              <span>Powered by Bitcoin & Stacks Blockchain</span>
             </div>
             
             <h1 
               className="section-title text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-tight opacity-0 animate-fade-in" 
               style={{ animationDelay: "0.3s" }}
             >
-              NFT Tickets:<br className="hidden sm:inline" />The Future of Events
+              Your Events,<br className="hidden sm:inline" />Your NFTs,<br className="hidden sm:inline" />Your Future
             </h1>
             
             <p 
               style={{ animationDelay: "0.5s" }} 
               className="section-subtitle mt-3 sm:mt-6 mb-4 sm:mb-8 leading-relaxed opacity-0 animate-fade-in text-gray-950 font-normal text-base sm:text-lg text-left"
             >
-              Secure, verifiable, and tradeable event tickets powered by Stack blockchain technology.
+              Experience the next generation of event ticketing. Secure blockchain-based NFT tickets that you truly own, trade freely, and collect forever. Built on Bitcoin's security through Stacks.
             </p>
             
             <div 
@@ -164,8 +164,8 @@ const Hero = () => {
               <div className="relative transition-all duration-500 ease-out overflow-hidden rounded-2xl sm:rounded-3xl shadow-2xl">
                 <img 
                   ref={imageRef} 
-                  src="/lovable-uploads/5663820f-6c97-4492-9210-9eaa1a8dc415.png" 
-                  alt="Atlas Robot" 
+                  src="/src/img/heroimg.png" 
+                  alt="Hero Image" 
                   className="w-full h-auto object-cover transition-transform duration-500 ease-out" 
                   style={{ transformStyle: 'preserve-3d' }} 
                 />

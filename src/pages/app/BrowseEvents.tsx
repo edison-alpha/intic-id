@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import AppLayout from "@/components/app/AppLayout";
-import { Search, Calendar, MapPin, Users, ArrowRight, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const BrowseEvents = () => {
@@ -15,28 +15,6 @@ const BrowseEvents = () => {
     discount: 10,
     earlyAccess: true,
     icon: "🥈"
-  };
-
-  const scrollSlider = (direction: 'left' | 'right') => {
-    if (sliderRef.current) {
-      const scrollAmount = sliderRef.current.offsetWidth;
-      const newScrollLeft = direction === 'left' 
-        ? sliderRef.current.scrollLeft - scrollAmount
-        : sliderRef.current.scrollLeft + scrollAmount;
-      
-      sliderRef.current.scrollTo({
-        left: newScrollLeft,
-        behavior: 'smooth'
-      });
-
-      // Update current slide based on scroll position
-      setTimeout(() => {
-        if (sliderRef.current) {
-          const slideIndex = Math.round(sliderRef.current.scrollLeft / sliderRef.current.offsetWidth);
-          setCurrentSlide(slideIndex);
-        }
-      }, 300);
-    }
   };
 
   // Track manual scroll for slide indicator
@@ -193,44 +171,69 @@ const BrowseEvents = () => {
           </div>
         </div>
 
-        {/* Featured Events - OpenSea Style Hero Slider */}
+        {/* Featured Events - Horizontal Slider with Dots Only (No Arrows) */}
         {featuredEvents.length > 0 && (
           <div className="mb-8 md:mb-12">
             <div className="mb-5 md:mb-6">
               <h2 className="section-title-mobile md:section-title-desktop text-white">Featured</h2>
             </div>
             
-            {/* Horizontal Scrollable Container */}
+            {/* Horizontal Scrollable Container with Integrated Arrows */}
             <div className="relative -mx-4 md:mx-0">
-              {/* Navigation Arrows - Positioned on Card Sides */}
+              {/* Navigation Arrows - Integrated on Banner (OpenSea Style) */}
               {featuredEvents.length > 1 && (
                 <>
                   <button
-                    onClick={() => scrollSlider('left')}
-                    className="hidden md:flex absolute left-2 lg:left-4 top-1/2 -translate-y-1/2 z-20 p-2 hover:scale-110 transition-all active:scale-95"
+                    onClick={() => {
+                      if (sliderRef.current) {
+                        const scrollAmount = sliderRef.current.offsetWidth;
+                        sliderRef.current.scrollTo({
+                          left: sliderRef.current.scrollLeft - scrollAmount,
+                          behavior: 'smooth'
+                        });
+                      }
+                    }}
+                    className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full transition-all hover:scale-110 active:scale-95 border border-white/20"
                     aria-label="Previous"
                   >
-                    <ChevronLeft className="w-8 h-8 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" />
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                    </svg>
                   </button>
                   <button
-                    onClick={() => scrollSlider('right')}
-                    className="hidden md:flex absolute right-2 lg:right-4 top-1/2 -translate-y-1/2 z-20 p-2 hover:scale-110 transition-all active:scale-95"
+                    onClick={() => {
+                      if (sliderRef.current) {
+                        const scrollAmount = sliderRef.current.offsetWidth;
+                        sliderRef.current.scrollTo({
+                          left: sliderRef.current.scrollLeft + scrollAmount,
+                          behavior: 'smooth'
+                        });
+                      }
+                    }}
+                    className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-30 w-12 h-12 items-center justify-center bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full transition-all hover:scale-110 active:scale-95 border border-white/20"
                     aria-label="Next"
                   >
-                    <ChevronRight className="w-8 h-8 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" />
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                    </svg>
                   </button>
                 </>
               )}
-              
+
               <div 
                 ref={sliderRef}
                 className="flex gap-3 md:gap-4 overflow-x-auto pb-4 px-4 md:px-0 snap-x snap-mandatory scrollbar-none scroll-smooth"
+                style={{
+                  msOverflowStyle: 'none',
+                  scrollbarWidth: 'none',
+                  WebkitOverflowScrolling: 'touch'
+                } as React.CSSProperties}
               >
                 {featuredEvents.map((event) => (
                   <Link
                     key={event.id}
                     to={`/app/event/${event.id}`}
-                    className="group relative flex-shrink-0 w-[85vw] md:w-full rounded-2xl md:rounded-3xl overflow-hidden border border-white/10 active:scale-[0.98] transition-all duration-200 snap-center"
+                    className="group relative flex-shrink-0 w-[85vw] md:w-full rounded-2xl md:rounded-3xl overflow-hidden border border-white/10 hover:border-white/20 active:scale-[0.98] transition-all duration-200 snap-center"
                   >
                     {/* Full Background Image */}
                     <div
@@ -242,87 +245,66 @@ const BrowseEvents = () => {
                     </div>
 
                     {/* Content Container */}
-                    <div className="relative min-h-[340px] md:min-h-[320px] flex flex-col justify-end p-5 md:p-8">
+                    <div className="relative min-h-[380px] md:min-h-[420px] flex flex-col justify-end p-6 md:p-10">
                       {/* Badges - Top Left */}
-                      <div className="absolute top-4 left-4 flex flex-col gap-2">
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-white/95 backdrop-blur-sm text-black caption-text-mobile font-bold rounded-lg shadow-lg">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#FE5C02] animate-pulse" />
+                      <div className="absolute top-5 left-5 md:top-6 md:left-6 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white/95 backdrop-blur-sm text-black text-xs md:text-sm font-bold rounded-lg shadow-lg">
+                          <div className="w-2 h-2 rounded-full bg-[#FE5C02] animate-pulse" />
                           FEATURED
                         </div>
                         
                         {/* Early Access Badge */}
                         {event.earlyAccess && userTier?.earlyAccess && (
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 backdrop-blur-sm text-white caption-text-mobile font-bold rounded-lg shadow-lg">
+                          <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 backdrop-blur-sm text-white text-xs md:text-sm font-bold rounded-lg shadow-lg">
                             <span>⚡</span>
                             EARLY ACCESS
                           </div>
                         )}
                       </div>
 
-                      {/* Floating Stats - Mobile Only */}
-                      <div className="absolute top-4 right-4 md:hidden flex flex-col gap-2">
-                        <div className="flex items-center gap-2 px-3 py-2 bg-black/60 backdrop-blur-md rounded-xl">
-                          <Users className="w-4 h-4 text-white" />
-                          <span className="text-white caption-text-mobile font-semibold">{event.available} left</span>
+                      {/* Floating Stats - Top Right */}
+                      <div className="absolute top-5 right-5 md:top-6 md:right-6 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 px-4 py-2.5 bg-black/60 backdrop-blur-md rounded-xl">
+                          <Users className="w-5 h-5 text-white" />
+                          <span className="text-white text-sm md:text-base font-semibold">{event.available} of {event.total}</span>
                         </div>
-                        <div className="px-3 py-2 bg-[#FE5C02]/90 backdrop-blur-md rounded-xl text-center">
-                          <span className="text-white caption-text-mobile font-bold">{event.price}</span>
+                        <div className="px-4 py-2.5 bg-[#FE5C02]/90 backdrop-blur-md rounded-xl text-center">
+                          <span className="text-white text-sm md:text-base font-bold">{event.price}</span>
                         </div>
                       </div>
 
                       {/* Main Content - Bottom */}
-                      <div className="space-y-4 md:space-y-5">
+                      <div className="space-y-4 md:space-y-6">
                         {/* Title */}
-                        <h3 className="text-2xl md:text-[32px] md:leading-[38px] font-bold text-white group-hover:text-[#FE5C02] transition-colors line-clamp-2 drop-shadow-lg">
+                        <h3 className="text-3xl md:text-5xl font-bold text-white group-hover:text-[#FE5C02] transition-colors line-clamp-2 drop-shadow-lg">
                           {event.title}
                         </h3>
 
                         {/* Metadata Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 max-w-3xl">
                           {/* Date & Time */}
                           <div className="flex items-start gap-3">
-                            <Calendar className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5" />
+                            <Calendar className="w-6 h-6 text-gray-300 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
-                              <p className="text-white small-text-mobile md:body-text-desktop font-semibold mb-0.5">{event.date}</p>
-                              <p className="text-gray-300 caption-text-mobile">{event.time}</p>
+                              <p className="text-white text-base md:text-lg font-semibold mb-1">{event.date}</p>
+                              <p className="text-gray-300 text-sm">{event.time}</p>
                             </div>
                           </div>
                           
                           {/* Location */}
                           <div className="flex items-start gap-3">
-                            <MapPin className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5" />
+                            <MapPin className="w-6 h-6 text-gray-300 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
-                              <p className="text-white small-text-mobile md:body-text-desktop font-semibold line-clamp-2">{event.location}</p>
-                            </div>
-                          </div>
-                          
-                          {/* Availability - Desktop Only */}
-                          <div className="hidden md:flex items-start gap-3">
-                            <Users className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                              <p className="text-white body-text-desktop font-semibold">{event.available} of {event.total}</p>
-                              <p className="text-gray-300 caption-text-desktop">available</p>
+                              <p className="text-white text-base md:text-lg font-semibold line-clamp-2">{event.location}</p>
                             </div>
                           </div>
                         </div>
 
-                        {/* Price & CTA Row - Desktop */}
-                        <div className="hidden md:flex items-center justify-between pt-3 border-t border-white/20">
-                          {/* Price */}
-                          <div className="flex items-center gap-3">
-                            <div>
-                              <p className="caption-text-desktop text-gray-400 mb-1">Price</p>
-                              <div className="flex items-center gap-2">
-                                <p className="text-[24px] leading-none font-bold text-white">{event.price}</p>
-                                <img src="https://ipfs.io/ipfs/bafkreiffe46h5voimvulxm2s4ddszdm4uli4rwcvx34cgzz3xkfcc2hiwi" alt="sBTC" className="w-5 h-5 object-contain" />
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* CTA Button */}
-                          <button className="flex items-center gap-2 px-6 py-3 bg-[#FE5C02] hover:bg-[#E54F02] text-white font-semibold rounded-xl transition-all shadow-lg group-hover:shadow-[#FE5C02]/50">
+                        {/* CTA Button - Desktop */}
+                        <div className="hidden md:block pt-4">
+                          <button className="flex items-center gap-3 px-8 py-4 bg-[#FE5C02] hover:bg-[#E54F02] text-white text-lg font-semibold rounded-xl transition-all shadow-lg group-hover:shadow-[#FE5C02]/50 group-hover:scale-105">
                             <span>Get Tickets</span>
-                            <ArrowRight className="w-5 h-5" />
+                            <ArrowRight className="w-6 h-6" />
                           </button>
                         </div>
                       </div>
@@ -331,9 +313,9 @@ const BrowseEvents = () => {
                 ))}
               </div>
 
-              {/* Slide Dots - OpenSea Style */}
+              {/* Slide Dots Indicator - OpenSea Style (Smaller and Subtle) */}
               {featuredEvents.length > 1 && (
-                <div className="flex justify-center items-center gap-2 mt-5 md:mt-6">
+                <div className="flex justify-center items-center gap-1.5 mt-4 md:mt-5">
                   {featuredEvents.map((_, index) => (
                     <button
                       key={index}
@@ -347,8 +329,8 @@ const BrowseEvents = () => {
                       }}
                       className={`transition-all duration-300 rounded-full ${
                         index === currentSlide
-                          ? 'w-8 h-2 bg-white'
-                          : 'w-2 h-2 bg-white/30 hover:bg-white/50'
+                          ? 'w-6 h-1.5 bg-white'
+                          : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/60'
                       }`}
                       aria-label={`Go to slide ${index + 1}`}
                     />

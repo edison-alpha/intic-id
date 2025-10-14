@@ -169,11 +169,21 @@ export const MultiAuthForm: React.FC = () => {
             Sign In to Continue
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Choose your preferred authentication method
+            We'll send you a verification code via email
           </p>
         </div>
 
-        {/* Google OAuth Button */}
+        {/* Email Button - Primary Method */}
+        <button
+          onClick={() => setAuthMethod('email')}
+          className="w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-all flex items-center justify-center gap-3 group"
+        >
+          <Mail className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          Continue with Email
+        </button>
+
+        {/* Hidden: Google OAuth and Passkey for now */}
+        {/* 
         <button
           onClick={() => loginWithGoogle()}
           disabled={isGoogleLoading}
@@ -192,7 +202,6 @@ export const MultiAuthForm: React.FC = () => {
           )}
         </button>
 
-        {/* Passkey Button */}
         <button
           onClick={() => loginWithPasskey()}
           disabled={isPasskeyLoading}
@@ -210,15 +219,7 @@ export const MultiAuthForm: React.FC = () => {
             </>
           )}
         </button>
-
-        {/* Email Button */}
-        <button
-          onClick={() => setAuthMethod('email')}
-          className="w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-all flex items-center justify-center gap-3 group"
-        >
-          <Mail className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          Continue with Email
-        </button>
+        */}
 
         <div className="relative my-4">
           <div className="absolute inset-0 flex items-center">

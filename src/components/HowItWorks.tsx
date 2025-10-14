@@ -48,27 +48,27 @@ const HowItWorks = () => {
   const stepsData = [
     {
       number: "01",
-      title: "Request Access",
-      description: "Fill out the application form to join our early access program and secure your spot in line.",
-      image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=800&q=80"
+      title: "Connect Your Wallet",
+      description: "Sign in securely with your Stacks wallet or create a new one using email authentication via Turnkey.",
+      image: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=800&q=80"
     },
     {
       number: "02",
-      title: "Personalization",
-      description: "We'll work with you to customize Atlas to your specific needs and preferences.",
-      image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80"
+      title: "Browse Events",
+      description: "Explore upcoming concerts, sports, conferences, and exclusive events. Filter by category, date, or location.",
+      image: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=800&q=80"
     },
     {
       number: "03",
-      title: "Integration",
-      description: "Atlas arrives at your location and is integrated into your living or working environment.",
-      image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=800&q=80"
+      title: "Purchase NFT Tickets",
+      description: "Buy tickets using sBTC (Bitcoin on Stacks). Each ticket is minted as a unique NFT directly to your wallet.",
+      image: "https://images.unsplash.com/photo-1639322537228-f710d846310a?auto=format&fit=crop&w=800&q=80"
     },
     {
       number: "04",
-      title: "Adaptation",
-      description: "Through daily interaction, Atlas learns and adapts to your routines, preferences, and needs.",
-      image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80"
+      title: "Own, Trade, or Attend",
+      description: "Your NFT ticket is yours forever. Attend the event, trade it on the marketplace, or keep it as a digital collectible.",
+      image: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=800&q=80"
     }
   ];
 
@@ -116,11 +116,11 @@ const HowItWorks = () => {
       <div className="section-container">
         <div className="text-center mb-16 opacity-0 fade-in-stagger">
           <div className="pulse-chip mx-auto mb-4">
-            <span>Process</span>
+            <span>How It Works</span>
           </div>
-          <h2 className="section-title mb-4">How Atlas Integrates Into Your Life</h2>
+          <h2 className="section-title mb-4">Get Started in 4 Simple Steps</h2>
           <p className="section-subtitle mx-auto">
-            A seamless four-step process from request to full integration.
+            From wallet connection to event attendance, experience seamless blockchain ticketing.
           </p>
         </div>
         
