@@ -1,6 +1,5 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+﻿
+@import "tailwindcss";
 
 @font-face {
   font-family: 'Brockmann';
@@ -11,9 +10,121 @@
   font-display: swap;
 }
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@plugin "@tailwindcss/typography";
+
+@theme {
+  /* Color palette */
+  --color-pulse-50: #fff7ed;
+  --color-pulse-100: #ffedd5;
+  --color-pulse-200: #fed7aa;
+  --color-pulse-300: #fdba74;
+  --color-pulse-400: #fb923c;
+  --color-pulse-500: #f97316;
+  --color-pulse-600: #ea580c;
+  --color-pulse-700: #c2410c;
+  --color-pulse-800: #9a3412;
+  --color-pulse-900: #7c2d12;
+  --color-pulse-950: #431407;
+
+  --color-dark-600: #3d3d3d;
+  --color-dark-700: #2d2d2d;
+  --color-dark-800: #1e1e1e;
+  --color-dark-900: #121212;
+
+  /* Theme colors from CSS variables */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Border radius */
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
+
+  /* Font families */
+  --font-sans: Inter, sans-serif;
+  --font-display: Brockmann, "SF Pro Display", Inter, sans-serif;
+  --font-brockmann: Brockmann, serif;
+  --font-playfair: "Playfair Display", serif;
+
+  /* Box shadows */
+  --shadow-elegant: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-elegant-hover: 0 8px 30px rgba(0, 0, 0, 0.12);
+
+  /* Container settings */
+  --container-center: true;
+  --container-padding: 2rem;
+  --container-2xl: 1400px;
+
+  /* Animations */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-in: fade-in 0.7s ease-out forwards;
+  --animate-fade-in-right: fade-in-right 0.7s ease-out forwards;
+  --animate-fade-in-left: fade-in-left 0.7s ease-out forwards;
+  --animate-pulse-slow: pulse-slow 3s infinite;
+  --animate-float: float 6s ease-in-out infinite;
+
+  /* Keyframes */
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+
+  @keyframes fade-in {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fade-in-right {
+    0% { opacity: 0; transform: translateX(-20px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes fade-in-left {
+    0% { opacity: 0; transform: translateX(20px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+}
 
 @layer base {
   :root {
@@ -98,11 +209,15 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
 
   body {
-    @apply bg-white text-black font-sans antialiased;
+    background-color: white;
+    color: black;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   /* Smooth scrolling */
@@ -139,39 +254,162 @@
   }
 
   .pulse-chip {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-pulse-100 text-pulse-600 border border-pulse-200;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    background-color: var(--color-pulse-100);
+    color: var(--color-pulse-600);
+    border: 1px solid var(--color-pulse-200);
   }
-  
+
   .section-container {
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12;
+    max-width: 80rem;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 2rem 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .section-container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .section-container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      padding-top: 3rem;
+      padding-bottom: 3rem;
+    }
   }
 
   .section-title {
-    @apply text-3xl md:text-4xl lg:text-5xl font-display font-bold tracking-tight;
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+
+  @media (min-width: 768px) {
+    .section-title {
+      font-size: 2.25rem;
+      line-height: 2.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .section-title {
+      font-size: 3rem;
+      line-height: 1;
+    }
   }
 
   .section-subtitle {
-    @apply text-lg md:text-xl text-gray-600 mt-4 max-w-3xl;
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    color: rgb(75 85 99);
+    margin-top: 1rem;
+    max-width: 48rem;
+  }
+
+  @media (min-width: 768px) {
+    .section-subtitle {
+      font-size: 1.25rem;
+      line-height: 1.75rem;
+    }
   }
 
   .glass-card {
-    @apply bg-white/70 backdrop-blur-sm border border-white/20 rounded-2xl shadow-elegant transition-all duration-300 hover:shadow-elegant-hover;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-elegant);
+    transition: all 0.3s ease;
+  }
+
+  .glass-card:hover {
+    box-shadow: var(--shadow-elegant-hover);
   }
 
   .feature-card {
-    @apply p-6 rounded-2xl transition-all duration-500 hover:translate-y-[-5px];
+    padding: 1.5rem;
+    border-radius: 1rem;
+    transition: all 0.5s ease;
   }
-  
+
+  .feature-card:hover {
+    transform: translateY(-5px);
+  }
+
   .button-primary {
-    @apply bg-pulse-500 hover:bg-pulse-600 text-white font-medium py-3 px-6 rounded-full transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98];
+    background-color: var(--color-pulse-500);
+    color: white;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    transform: scale(1);
+  }
+
+  .button-primary:hover {
+    background-color: var(--color-pulse-600);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    transform: scale(1.02);
+  }
+
+  .button-primary:active {
+    transform: scale(0.98);
   }
 
   .button-secondary {
-    @apply bg-transparent border border-gray-300 hover:border-pulse-500 text-gray-800 hover:text-pulse-500 font-medium py-3 px-6 rounded-full transition-all duration-300;
+    background-color: transparent;
+    border: 1px solid rgb(209 213 219);
+    color: rgb(31 41 55);
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px;
+    transition: all 0.3s ease;
   }
-  
+
+  .button-secondary:hover {
+    border-color: var(--color-pulse-500);
+    color: var(--color-pulse-500);
+  }
+
   .nav-link {
-    @apply relative text-gray-800 hover:text-pulse-500 py-2 transition-colors duration-300 after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-0 after:bg-pulse-500 after:transition-all hover:after:w-full;
+    position: relative;
+    color: rgb(31 41 55);
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    transition: color 0.3s ease;
+  }
+
+  .nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    width: 0;
+    background-color: var(--color-pulse-500);
+    transition: width 0.3s ease;
+  }
+
+  .nav-link:hover {
+    color: var(--color-pulse-500);
+  }
+
+  .nav-link:hover::after {
+    width: 100%;
   }
 }
 
@@ -220,4 +458,65 @@
 .parallax {
   transform: translateY(var(--parallax-y, 0));
   transition: transform 0.1s ease-out;
+}
+
+/* Turnkey Modal - Custom overrides to match app theme */
+/* Override Turnkey modal styles to match our elegant design system */
+
+/* Apply Brockmann font to modal */
+.tk-modal,
+.tk-modal * {
+  font-family: var(--font-display) !important;
+}
+
+/* Modal container - Add elegant shadow */
+.tk-modal[role="dialog"] {
+  box-shadow: var(--shadow-elegant-hover) !important;
+}
+
+/* Modal buttons - Match app's button style */
+.tk-modal button:not([aria-label*="close"]) {
+  border-radius: 9999px !important;
+  font-weight: 600 !important;
+  transition: all 0.3s ease !important;
+  padding: 0.75rem 1.5rem !important;
+}
+
+.tk-modal button:not([aria-label*="close"]):hover {
+  transform: scale(1.02) !important;
+  box-shadow: 0 10px 15px -3px rgba(249, 115, 22, 0.2) !important;
+}
+
+.tk-modal button:not([aria-label*="close"]):active {
+  transform: scale(0.98) !important;
+}
+
+/* Input fields - Match app's elegant style */
+.tk-modal input,
+.tk-modal textarea {
+  border-radius: 0.75rem !important;
+  transition: all 0.3s ease !important;
+}
+
+.tk-modal input:focus,
+.tk-modal textarea:focus {
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1) !important;
+}
+
+/* Infinite scroll animation for logo slider */
+@keyframes infinite-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-infinite-scroll {
+  animation: infinite-scroll 30s linear infinite;
+}
+
+.hover\:pause-animation:hover {
+  animation-play-state: paused;
 }

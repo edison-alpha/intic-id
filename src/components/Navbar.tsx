@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Rocket } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -62,7 +63,7 @@ const Navbar = () => {
         </a>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex space-x-8">
+        <nav className="hidden md:flex items-center space-x-8">
           <a 
             href="#" 
             className="nav-link"
@@ -75,6 +76,13 @@ const Navbar = () => {
           </a>
           <a href="#features" className="nav-link">About</a>
           <a href="#details" className="nav-link">Contact</a>
+          <Link 
+            to="/app" 
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-full hover:bg-primary/90 transition-all hover:shadow-lg"
+          >
+            <Rocket className="w-4 h-4" />
+            Launch App
+          </Link>
         </nav>
 
         {/* Mobile menu button - increased touch target */}
@@ -125,6 +133,17 @@ const Navbar = () => {
           >
             Contact
           </a>
+          <Link 
+            to="/app" 
+            className="inline-flex items-center gap-2 px-8 py-3 bg-primary text-white rounded-full hover:bg-primary/90 transition-all text-xl font-medium"
+            onClick={() => {
+              setIsMenuOpen(false);
+              document.body.style.overflow = '';
+            }}
+          >
+            <Rocket className="w-5 h-5" />
+            Launch App
+          </Link>
         </nav>
       </div>
     </header>

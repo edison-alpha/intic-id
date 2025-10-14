@@ -40,17 +40,16 @@ const FeatureCard = ({ icon, title, description, index }: FeatureCardProps) => {
     <div 
       ref={cardRef}
       className={cn(
-        "feature-card glass-card opacity-0 p-4 sm:p-6",
-        "lg:hover:bg-gradient-to-br lg:hover:from-white lg:hover:to-pulse-50",
-        "transition-all duration-300"
+        "feature-card opacity-0 bg-white rounded-2xl p-8 shadow-sm border border-gray-100",
+        "hover:shadow-lg transition-all duration-300"
       )}
       style={{ animationDelay: `${0.1 * index}s` }}
     >
-      <div className="rounded-full bg-pulse-50 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-pulse-500 mb-4 sm:mb-5">
+      <div className="rounded-xl bg-black w-14 h-14 flex items-center justify-center text-white mb-6">
         {icon}
       </div>
-      <h3 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-3">{title}</h3>
-      <p className="text-gray-600 text-sm sm:text-base">{description}</p>
+      <h3 className="text-xl font-semibold mb-3 text-gray-900">{title}</h3>
+      <p className="text-gray-600 leading-relaxed">{description}</p>
     </div>
   );
 };
@@ -88,56 +87,55 @@ const Features = () => {
   }, []);
   
   return (
-    <section className="py-12 sm:py-16 md:py-20 pb-0 relative bg-gray-50" id="features" ref={sectionRef}>
+    <section className="py-20 md:py-32 relative bg-white" id="features" ref={sectionRef}>
       <div className="section-container">
-        <div className="text-center mb-10 sm:mb-16">
-          <div className="pulse-chip mx-auto mb-3 sm:mb-4 opacity-0 fade-in-element">
+        <div className="text-center mb-16">
+          <div className="pulse-chip mx-auto mb-4 opacity-0 fade-in-element">
             <span>Features</span>
           </div>
-          <h2 className="section-title mb-3 sm:mb-4 opacity-0 fade-in-element">
-            Secure, Transparent, <br className="hidden sm:block" />Revolutionary
+          <h2 className="text-4xl md:text-5xl font-bold mb-4 opacity-0 fade-in-element">
+            Secure, Transparent, <br />Revolutionary
           </h2>
-          <p className="section-subtitle mx-auto opacity-0 fade-in-element">
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto opacity-0 fade-in-element">
             Built on blockchain technology to provide true ownership, security, and unprecedented flexibility.
           </p>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
+          {/* Large feature card - top left */}
+          <div className="md:row-span-2">
+            <div className="bg-black text-white rounded-2xl p-12 h-full flex flex-col justify-center shadow-xl">
+              <h3 className="text-4xl font-bold mb-6 leading-tight">
+                Meet the 'Satoshi<br />Upgrades'
+              </h3>
+              <p className="text-gray-300 text-lg leading-relaxed">
+                Experience the future of event ticketing with blockchain technology that ensures authenticity, transparency, and true ownership.
+              </p>
+            </div>
+          </div>
+
+          {/* Top right card */}
           <FeatureCard
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 sm:w-6 sm:h-6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path></svg>}
-            title="Fraud Prevention"
-            description="Every ticket is verified on the blockchain, making counterfeiting impossible and ensuring authenticity."
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>}
+            title="Beautiful Bitcoin DeFi"
+            description="More flexibility, more composability, more security: major upgrades ahead for Bitcoin DeFi on the leading Bitcoin L2."
             index={0}
           />
+
+          {/* Bottom left card */}
           <FeatureCard
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 sm:w-6 sm:h-6"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg>}
-            title="Secondary Market"
-            description="Easily transfer or sell your tickets with built-in marketplace functionality and automatic royalty payments."
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path></svg>}
+            title="Self-custodial on-ramps"
+            description="Take a look ahead at designs that will eliminate sBTC custody risk by enabling users further control over the underlying BTC."
             index={1}
           />
+
+          {/* Bottom right card */}
           <FeatureCard
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 sm:w-6 sm:h-6"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M7 7h.01"></path><path d="M17 7h.01"></path><path d="M7 17h.01"></path><path d="M17 17h.01"></path></svg>}
-            title="Digital Collectibles"
-            description="Each ticket is a unique collectible with custom artwork, creating lasting memories beyond the event."
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>}
+            title="Sustainable Bitcoin Yields"
+            description="Dual-Stacking, Vaults, PoX power-ups and more. Learn what's ahead for those that want real Bitcoin yield."
             index={2}
-          />
-          <FeatureCard
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 sm:w-6 sm:h-6"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>}
-            title="Smart Analytics"
-            description="Real-time blockchain data provides transparent attendance tracking and valuable fan engagement insights."
-            index={3}
-          />
-          <FeatureCard
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 sm:w-6 sm:h-6"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>}
-            title="Fan Rewards"
-            description="Unlock exclusive benefits, early access, and special perks based on your ticket ownership history."
-            index={4}
-          />
-          <FeatureCard
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 sm:w-6 sm:h-6"><path d="M12 2v20"></path><path d="m19 15-7-7-7 7"></path></svg>}
-            title="Instant Verification"
-            description="Quick QR code scanning with blockchain verification ensures seamless and secure event entry."
-            index={5}
           />
         </div>
       </div>
