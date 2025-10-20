@@ -13,6 +13,8 @@ import {
   scheduleEventReminder,
   EventReminder
 } from '@/services/emailReminderService';
+import { useEventReminders } from '@/hooks/useEventReminders';
+import { getStoredEmail, storeEmail } from '@/services/ticketPurchaseNotification';
 
 const MyTickets = () => {
   const { wallet } = useWallet();
@@ -27,6 +29,9 @@ const MyTickets = () => {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [upcomingReminders, setUpcomingReminders] = useState<EventReminder[]>([]);
+
+  // Use automatic event reminders hook
+  useEventReminders(tickets, !!userEmail);
 
   const handleShowQR = (ticket: any) => {
     setSelectedTicket({
@@ -47,8 +52,8 @@ const MyTickets = () => {
       setLoading(false);
     }
 
-    // Load saved email from localStorage
-    const savedEmail = localStorage.getItem('user-email');
+    // Load saved email from localStorage (using unified storage)
+    const savedEmail = getStoredEmail();
     if (savedEmail) {
       setUserEmail(savedEmail);
     }
@@ -127,8 +132,8 @@ const MyTickets = () => {
       return;
     }
 
-    // Save email to localStorage
-    localStorage.setItem('user-email', userEmail);
+    // Save email to localStorage (using unified storage)
+    storeEmail(userEmail);
 
     // Check for upcoming events
     const reminders = getEventsNeedingReminders(tickets, userEmail);

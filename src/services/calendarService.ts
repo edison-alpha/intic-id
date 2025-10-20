@@ -57,6 +57,11 @@ export function generateICS(event: CalendarEvent): string {
     'ACTION:DISPLAY',
     'DESCRIPTION:Event reminder - 1 day before',
     'END:VALARM',
+    'BEGIN:VALARM',
+    'TRIGGER:-PT48H',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:Event reminder - 2 days before',
+    'END:VALARM',
     'END:VEVENT',
     'END:VCALENDAR',
   ]

@@ -441,7 +441,6 @@ const CreateEventNFT = () => {
     setDeploymentStep('deploying');
 
     try {
-      console.log('📝 Step 1/2: Deploying your NFT contract to the blockchain...');
 
       // Generate contract name FIRST (before using it in template)
       // ✅ IMPROVED: More aggressive sanitization to ensure blockchain compatibility
@@ -959,21 +958,13 @@ ${formData.pricingMode === 'usd-dynamic' ? `(define-read-only (get-ticket-price-
 )
 `.trim();
 
-      // Log contract details
-      console.log('📝 Contract details:');
-      console.log('- Name:', contractName);
-      console.log('- Code length:', contractCode.length, 'bytes');
-      console.log('- First 200 chars:', contractCode.substring(0, 200));
-      
       // Validate contract code
       if (contractCode.length > 100000) {
         throw new Error('Contract code too large (max ~100KB)');
       }
 
       // Deploy using wallet
-      console.log('🚀 Deploying contract...');
       const txId = await deployContract(contractName, contractCode);
-      console.log('✅ Contract deployed successfully! TX ID:', txId);
       setDeployedTxId(txId);
 
       // Wait a moment for transaction to propagate
@@ -1101,7 +1092,6 @@ ${formData.pricingMode === 'usd-dynamic' ? `(define-read-only (get-ticket-price-
       // 🔥 AUTO-REGISTER to Event Registry (BLOCKCHAIN CALL!)
       setDeploymentStep('registering');
       try {
-        console.log('🎫 Step 2/2: Registering your event to the platform registry...');
         
         const contractId = `${wallet?.address}.${contractName}`;
         
@@ -1126,15 +1116,6 @@ ${formData.pricingMode === 'usd-dynamic' ? `(define-read-only (get-ticket-price-
           stringAsciiCV(contractName),
         ];
         
-        console.log('Registry V2 contract call details:', {
-          registryOwner,
-          registryName,
-          contractId,
-          contractName,
-          functionName: 'register-event',
-          note: 'V2: Only stores contract address, details fetched via indexer',
-        });
-        
         // Call registry contract via wallet (uses callback for result)
         await callContractFunction({
           contractAddress: registryOwner,
@@ -1142,7 +1123,6 @@ ${formData.pricingMode === 'usd-dynamic' ? `(define-read-only (get-ticket-price-
           functionName: 'register-event',
           functionArgs,
           onFinish: (data: any) => {
-            console.log('✅ Event registered to platform! TX ID:', data.txId);
             setRegistrationTxId(data.txId);
 
             // Update localStorage with registry info
@@ -1169,12 +1149,6 @@ ${formData.pricingMode === 'usd-dynamic' ? `(define-read-only (get-ticket-price-
         });
         
       } catch (registryError: any) {
-        console.error('⚠️ Registry registration failed:', registryError);
-        console.error('Error details:', {
-          message: registryError?.message,
-          error: registryError?.error,
-          stack: registryError?.stack,
-        });
         
         // Event deployed but not registered - not critical
         const errorMsg = registryError?.error?.message 

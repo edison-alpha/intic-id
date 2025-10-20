@@ -179,7 +179,6 @@ async function fetchNFTEventsFromAPI(contractId: string, limit: number = 50): Pr
     const data = await fetchFromHiroAPI(url);
 
     if (!data) {
-      console.log(`    ℹ️ Contract not indexed yet: ${contractId}`);
       return null;
     }
 
@@ -196,7 +195,7 @@ async function fetchNFTEventsFromAPI(contractId: string, limit: number = 50): Pr
  */
 async function fetchMintEvents(contractId: string, limit: number = 5): Promise<NFTMintEvent[]> {
   try {
-    console.log(`    🔍 Fetching real mints from: ${contractId}`);
+
 
     const [address, name] = contractId.split('.');
 
@@ -209,7 +208,7 @@ async function fetchMintEvents(contractId: string, limit: number = 5): Promise<N
     const apiData = await fetchNFTEventsFromAPI(contractId, limit);
 
     if (apiData && apiData.results && apiData.results.length > 0) {
-      console.log(`    ✅ Found ${apiData.results.length} real mint events from API`);
+
 
       const mintEvents: NFTMintEvent[] = apiData.results.map((mint: any) => ({
         txId: mint.tx_id,
@@ -235,7 +234,7 @@ async function fetchMintEvents(contractId: string, limit: number = 5): Promise<N
       });
 
       const lastTokenId = Number(cvToValue(lastTokenIdResponse).value);
-      console.log(`    📊 Fallback: Contract has ${lastTokenId} tokens (using contract state)`);
+
 
       if (lastTokenId === 0) {
         return [];
@@ -276,7 +275,7 @@ async function fetchMintEvents(contractId: string, limit: number = 5): Promise<N
         });
       }
 
-      console.log(`    ✅ Generated ${mockMints.length} mint activities from contract state`);
+
       return mockMints;
 
     } catch (contractError) {
@@ -303,7 +302,7 @@ async function fetchTransferEvents(contractId: string, _limit: number = 3): Prom
     // 2. History endpoint has issues (400)
     // 3. Transfers will appear automatically once Hiro indexes the contracts
 
-    console.log(`    ⏳ Transfer events will appear once contract is indexed by Hiro`);
+
     return [];
 
   } catch (error) {
@@ -318,13 +317,13 @@ async function fetchTransferEvents(contractId: string, _limit: number = 3): Prom
  */
 async function fetchDeploymentEvents(limit: number = 10): Promise<ContractDeployEvent[]> {
   try {
-    console.log(`    🔍 Fetching contract deployments from registry`);
+
 
     // Get all registered events from registry
     const registryEvents = await getAllRegistryEvents();
 
     if (registryEvents.length === 0) {
-      console.log(`    ℹ️ No deployments found in registry`);
+
       return [];
     }
 
@@ -345,7 +344,7 @@ async function fetchDeploymentEvents(limit: number = 10): Promise<ContractDeploy
         };
       });
 
-    console.log(`    ✅ Found ${deployments.length} deployment activities from registry`);
+
     return deployments;
 
   } catch (error) {
@@ -360,14 +359,14 @@ async function fetchDeploymentEvents(limit: number = 10): Promise<ContractDeploy
  */
 export async function getGlobalActivity(limit: number = 50): Promise<ActivityItem[]> {
   try {
-    console.log('📋 [ActivityService] Fetching global activity (optimized)...');
+
 
     // Get ALL registered event contracts from get-events-range (same as BrowseEvents)
     const registryEvents = await getAllRegistryEvents();
-    console.log(`📦 [ActivityService] Found ${registryEvents.length} registered events`);
+
 
     if (registryEvents.length === 0) {
-      console.log('ℹ️ No registered contracts found');
+
       return [];
     }
 
@@ -378,7 +377,7 @@ export async function getGlobalActivity(limit: number = 50): Promise<ActivityIte
     const deployments = await fetchDeploymentEvents(deploymentLimit);
 
     if (deployments.length > 0) {
-      console.log(`📦 Found ${deployments.length} deployment events`);
+
       // OPTIMIZATION 2: Parallel fetch event data for deployments
       const deployActivities = await convertDeploymentsToActivitiesOptimized(deployments);
       allActivities.push(...deployActivities);
@@ -404,12 +403,12 @@ export async function getGlobalActivity(limit: number = 50): Promise<ActivityIte
             }
 
             const name = contractId.split('.').pop() || event.contractName;
-            console.log(`  🔍 Fetching activity from: ${contractId}`);
+  
 
             // Fetch mint events only (transfers disabled for performance)
             const mintEvents = await fetchMintEvents(contractId, 3);
             if (mintEvents.length > 0) {
-              console.log(`    ✅ Found ${mintEvents.length} mint events`);
+
               return await convertMintsToActivitiesOptimized(mintEvents, name, contractId);
             }
             return [];
@@ -434,7 +433,7 @@ export async function getGlobalActivity(limit: number = 50): Promise<ActivityIte
     // Limit results
     const limitedActivities = allActivities.slice(0, limit);
 
-    console.log(`✅ [ActivityService] TOTAL: ${limitedActivities.length} activities (${deployments.length} deploys, ${limitedActivities.length - deployments.length} mints)`);
+
 
     return limitedActivities;
 
@@ -682,7 +681,7 @@ function getTierFromActivity(): string {
  */
 export async function getUserActivity(userAddress: string, limit: number = 20): Promise<ActivityItem[]> {
   try {
-    console.log(`👤 [ActivityService] Fetching activity for user: ${userAddress}`);
+
 
     // Get all activities
     const allActivities = await getGlobalActivity(100);
@@ -692,7 +691,7 @@ export async function getUserActivity(userAddress: string, limit: number = 20): 
       (activity) => activity.user.address === userAddress
     );
 
-    console.log(`✅ [ActivityService] Found ${userActivities.length} activities for user`);
+
 
     return userActivities.slice(0, limit);
 

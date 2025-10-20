@@ -403,6 +403,10 @@ const EventDetail = () => {
                         contractId={event.contractId}
                         price={event.priceInMicroSTX}
                         onSuccess={handleMintSuccess}
+                        eventName={event.title}
+                        eventDate={event.date}
+                        eventTime={event.time}
+                        location={event.location}
                       />
                     ) : (
                       <Button

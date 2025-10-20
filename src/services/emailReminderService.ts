@@ -21,11 +21,11 @@ const WEB3FORMS_ACCESS_KEY = import.meta.env.VITE_WEB3FORMS_KEY || 'YOUR_WEB3FOR
 /**
  * Schedule email reminder for an event
  * @param reminder - Event reminder details
- * @param reminderType - When to send: '1day', '1week', '1hour'
+ * @param reminderType - When to send: '2days', '1day', '1week', '1hour'
  */
 export async function scheduleEventReminder(
   reminder: EventReminder,
-  reminderType: '1day' | '1week' | '1hour' = '1day'
+  reminderType: '2days' | '1day' | '1week' | '1hour' = '1day'
 ): Promise<{ success: boolean; message: string }> {
   try {
     const eventDateTime = new Date(`${reminder.eventDate} ${reminder.eventTime}`);
@@ -47,6 +47,10 @@ export async function scheduleEventReminder(
       case '1day':
         shouldSendNow = hoursUntilEvent <= 24 && hoursUntilEvent > 0;
         reminderTime = '1 day';
+        break;
+      case '2days':
+        shouldSendNow = hoursUntilEvent <= 48 && hoursUntilEvent > 24;
+        reminderTime = '2 days';
         break;
       case '1week':
         shouldSendNow = hoursUntilEvent <= 168 && hoursUntilEvent > 0;
@@ -97,7 +101,7 @@ async function sendReminderEmail(
     formData.append('access_key', WEB3FORMS_ACCESS_KEY);
     formData.append('subject', `Reminder: ${reminder.eventName} in ${reminderTime}`);
     formData.append('from_name', 'INTIC - Event Ticketing');
-    formData.append('to', reminder.userEmail);
+    formData.append('email', reminder.userEmail);
 
     // Email body with HTML
     const emailBody = `
@@ -166,6 +170,10 @@ async function sendReminderEmail(
 
     formData.append('message', emailBody);
     formData.append('reply_to', 'noreply@intic.app');
+
+    // Important: Tell Web3Forms this is HTML content
+    formData.append('redirect', 'false');
+    formData.append('content_type', 'text/html');
 
     const response = await fetch('https://api.web3forms.com/submit', {
       method: 'POST',

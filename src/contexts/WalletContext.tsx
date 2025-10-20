@@ -223,8 +223,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         throw new Error('Wallet extension not found. Please make sure Hiro Wallet or Leather is installed and unlocked.');
       }
 
-      console.log('Deploying contract:', contractName);
-      console.log('Code length:', code.length);
+
 
       // Validate contract name
       if (!/^[a-z][a-z0-9-]*$/.test(contractName)) {
@@ -250,20 +249,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         postConditionMode: 'allow', // Allow the contract to make transfers
       };
 
-      console.log('Sending deploy request...');
-      console.log('Request params:', {
-        name: requestParams.name,
-        codeLength: requestParams.clarityCode.length,
-        network: requestParams.network,
-      });
+
 
       let response;
       try {
         response = await provider.request('stx_deployContract', requestParams);
-        console.log('✅ Deploy response received:', response);
-        console.log('Response type:', typeof response);
-        console.log('Response keys:', response ? Object.keys(response) : 'null');
-        console.log('Full response JSON:', JSON.stringify(response, null, 2));
+
       } catch (providerError: any) {
         console.error('❌ Provider request failed:', providerError);
         console.error('Error type:', typeof providerError);
@@ -363,13 +354,13 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         }
 
         if (txId) {
-          console.log('✅ Contract deployed with txId:', txId);
+  
           return txId;
         }
       }
 
       // If we reach here, deployment was initiated but no txId
-      console.log('⚠️ Deployment initiated without txId');
+
       return 'pending';
     } catch (error: any) {
       console.error('Error deploying contract:', error);
@@ -429,11 +420,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
 
     try {
-      console.log('🔍 Calling contract function:', {
-        contract: `${params.contractAddress}.${params.contractName}`,
-        function: params.functionName,
-        argsCount: params.functionArgs.length,
-      });
+
 
       // Get wallet provider (same as MintNFTButton)
       let provider = null;
@@ -453,7 +440,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         return `0x${Buffer.from(serialized).toString('hex')}`;
       });
 
-      console.log('📦 Serialized', serializedArgs.length, 'arguments to hex');
+
 
       // Use EXACT same format as MintNFTButton and UpdateEventDetails
       const response = await provider.request('stx_callContract', {
@@ -464,7 +451,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         postConditionMode: 'allow', // Allow any transfers
       });
 
-      console.log('✅ Contract call response:', response);
+
 
       // Extract txId (same as MintNFTButton)
       let txId = null;

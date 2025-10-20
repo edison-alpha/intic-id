@@ -156,11 +156,6 @@ export const ContractDeployment = () => {
 
       // Placeholder for actual deployment logic
       // You would need to implement proper Stacks transaction signing with Turnkey
-      console.log('Contract to deploy:', {
-        contractName,
-        codeBody: contractCode,
-        network: 'testnet'
-      });
 
       // Simulate deployment for now
       await new Promise(resolve => setTimeout(resolve, 2000));

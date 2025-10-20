@@ -59,7 +59,7 @@ const BrowseEvents = () => {
       setLoading(true);
       try {
         // Get all registered events from Registry V2
-        console.log('🔍 Fetching events from Registry V2...');
+  
         const registryEvents = await getAllRegistryEvents();
         console.log(`� Found ${registryEvents.length} registered events in registry`);
 

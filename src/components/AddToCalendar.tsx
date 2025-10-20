@@ -202,7 +202,7 @@ const AddToCalendar: React.FC<AddToCalendarProps> = ({
                       <p className="text-sm font-medium text-white group-hover:text-[#FE5C02] transition-colors">
                         {option.name}
                       </p>
-                      <p className="text-xs text-gray-500">1 day reminder</p>
+                      <p className="text-xs text-gray-500">2 days, 1 day & 1 hour reminders</p>
                     </div>
                   </button>
                 ))}
@@ -211,7 +211,7 @@ const AddToCalendar: React.FC<AddToCalendarProps> = ({
             
             <div className="p-3 bg-[#0A0A0A] border-t border-gray-800">
               <p className="text-xs text-gray-500 text-center">
-                📱 Sync across all your devices
+                📱 Auto reminders: 2 days, 1 day & 1 hour before event
               </p>
             </div>
           </div>

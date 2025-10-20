@@ -22,6 +22,7 @@ import logoOrangePng from '../assets/logoorange.png';
 import stxLogo from '../assets/stx.jpg';
 import { useWallet } from "@/contexts/WalletContext";
 import { WalletConnectModal } from "@/components/WalletConnectModal";
+import { getFullProfile, type FullProfile } from "@/services/profileService";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -38,6 +39,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const location = useLocation();
   const [balance, setBalance] = useState<number | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [userProfile, setUserProfile] = useState<FullProfile | null>(null);
 
   // Wallet integration
   const { wallet, isWalletConnected, disconnectWallet, getBalance } = useWallet();
@@ -97,6 +99,34 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     return () => clearInterval(interval);
   }, [isWalletConnected, wallet, getBalance]);
+
+  // Fetch user profile when wallet is connected
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (isWalletConnected && wallet?.address) {
+        try {
+          const profile = await getFullProfile(wallet.address);
+          console.log('👤 AppLayout - Profile loaded:', {
+            username: profile.username,
+            hasAvatar: !!profile.avatar,
+            avatarPreview: profile.avatar?.substring(0, 50) + '...'
+          });
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('Error fetching profile:', error);
+        }
+      } else {
+        setUserProfile(null);
+      }
+    };
+
+    fetchProfile();
+
+    // Refresh profile every 60 seconds
+    const interval = setInterval(fetchProfile, 60000);
+
+    return () => clearInterval(interval);
+  }, [isWalletConnected, wallet?.address]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -213,25 +243,28 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         </div>
 
         {/* User Section */}
-        <div className={`border-t border-gray-800 ${isSidebarExpanded ? "p-4" : "p-3"} relative`} ref={dropdownRef}>
+        <div className={`border-t border-gray-800 ${isSidebarExpanded ? "p-4" : "p-3"}`}>
           {isSidebarExpanded ? (
-            <div>
+            <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FE5C02] to-purple-600 flex items-center justify-center text-white font-bold">
-                  {isWalletConnected && wallet?.address
-                    ? wallet.address.slice(0, 2).toUpperCase()
-                    : 'A'
-                  }
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FE5C02] to-purple-600 flex items-center justify-center text-white font-bold overflow-hidden">
+                  {userProfile?.avatar ? (
+                    <img src={userProfile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : isWalletConnected && wallet?.address ? (
+                    wallet.address.slice(0, 2).toUpperCase()
+                  ) : (
+                    'A'
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">
-                    {isWalletConnected && wallet?.address
+                    {userProfile?.username || (isWalletConnected && wallet?.address
                       ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}`
                       : 'Anonymous'
-                    }
+                    )}
                   </p>
                   <p className={`text-xs truncate ${isWalletConnected ? 'text-green-400' : 'text-gray-500'}`}>
                     {isWalletConnected ? 'Connected' : 'Not Connected'}
@@ -239,16 +272,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 </div>
               </button>
 
-              {/* Dropdown Menu - Desktop */}
+              {/* Dropdown Menu - Desktop Expanded */}
               {isDropdownOpen && (
-                <div className="absolute bottom-full left-4 right-4 mb-2 bg-[#1A1A1A] border border-gray-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div className="fixed bottom-20 left-4 w-56 bg-[#1A1A1A] border border-gray-800 rounded-xl shadow-2xl overflow-hidden z-[9999]">
                   {profileMenuItems.map((item, index) => {
                     const Icon = item.icon;
                     return (
                       <NavLink
                         key={index}
                         to={item.path}
-                        onClick={() => setIsDropdownOpen(false)}
+                        onClick={(e) => {
+                          console.log('Desktop Expanded - Navigating to:', item.path);
+                          setIsDropdownOpen(false);
+                        }}
                         className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition-colors text-gray-300 hover:text-white border-b border-gray-800 last:border-b-0"
                       >
                         <Icon className="w-5 h-5" />
@@ -260,33 +296,39 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               )}
             </div>
           ) : (
-            <div>
+            <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex justify-center p-2 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer relative"
                 title="Profile Menu"
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FE5C02] to-purple-600 flex items-center justify-center text-white font-bold text-sm">
-                  {isWalletConnected && wallet?.address
-                    ? wallet.address.slice(0, 2).toUpperCase()
-                    : 'A'
-                  }
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FE5C02] to-purple-600 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+                  {userProfile?.avatar ? (
+                    <img src={userProfile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : isWalletConnected && wallet?.address ? (
+                    wallet.address.slice(0, 2).toUpperCase()
+                  ) : (
+                    'A'
+                  )}
                 </div>
                 {isWalletConnected && (
                   <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-[#1A1A1A]"></div>
                 )}
               </button>
 
-              {/* Dropdown Menu - Collapsed Sidebar */}
+              {/* Dropdown Menu - Desktop Collapsed */}
               {isDropdownOpen && (
-                <div className="absolute bottom-full left-full ml-2 mb-2 w-56 bg-[#1A1A1A] border border-gray-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-left-2 duration-200">
+                <div className="fixed bottom-20 left-20 w-56 bg-[#1A1A1A] border border-gray-800 rounded-xl shadow-2xl overflow-hidden z-[9999]">
                   {profileMenuItems.map((item, index) => {
                     const Icon = item.icon;
                     return (
                       <NavLink
                         key={index}
                         to={item.path}
-                        onClick={() => setIsDropdownOpen(false)}
+                        onClick={(e) => {
+                          console.log('Desktop Collapsed - Navigating to:', item.path);
+                          setIsDropdownOpen(false);
+                        }}
                         className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition-colors text-gray-300 hover:text-white border-b border-gray-800 last:border-b-0"
                       >
                         <Icon className="w-5 h-5" />
@@ -407,11 +449,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center relative p-1"
             >
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FE5C02] to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                {isWalletConnected && wallet?.address
-                  ? wallet.address.slice(0, 2).toUpperCase()
-                  : 'A'
-                }
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FE5C02] to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-lg overflow-hidden">
+                {userProfile?.avatar ? (
+                  <img src={userProfile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : isWalletConnected && wallet?.address ? (
+                  wallet.address.slice(0, 2).toUpperCase()
+                ) : (
+                  'A'
+                )}
               </div>
               {isWalletConnected && (
                 <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-[#1A1A1A] shadow-sm"></div>
@@ -423,10 +468,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               <div className="absolute top-full right-0 mt-2 w-64 bg-[#1A1A1A] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 {/* User Info */}
                 <div className="px-4 py-3 border-b border-gray-800 bg-gradient-to-br from-[#FE5C02]/10 to-purple-600/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        {isWalletConnected ? `${wallet?.address?.slice(0, 6)}...${wallet?.address?.slice(-4)}` : 'Anonymous'}
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FE5C02] to-purple-600 flex items-center justify-center text-white font-bold overflow-hidden flex-shrink-0">
+                      {userProfile?.avatar ? (
+                        <img src={userProfile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : isWalletConnected && wallet?.address ? (
+                        wallet.address.slice(0, 2).toUpperCase()
+                      ) : (
+                        'A'
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">
+                        {userProfile?.username || (isWalletConnected ? `${wallet?.address?.slice(0, 6)}...${wallet?.address?.slice(-4)}` : 'Anonymous')}
                       </p>
                       <p className="text-xs text-gray-400">
                         {isWalletConnected ? 'Connected' : 'Not Connected'}
@@ -479,7 +533,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     <NavLink
                       key={index}
                       to={item.path}
-                      onClick={() => setIsDropdownOpen(false)}
+                      onClick={(e) => {
+                        console.log('Mobile - Navigating to:', item.path);
+                        setIsDropdownOpen(false);
+                      }}
                       className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-800 active:bg-gray-700 transition-colors text-gray-300 hover:text-white border-b border-gray-800 last:border-b-0"
                     >
                       <Icon className="w-5 h-5" />

@@ -16,6 +16,7 @@ import EventDetail from "./pages/EventDetail";
 import TicketDetail from "./pages/TicketDetail";
 import Profile from "./pages/Profile";
 import CreateTicket from "./pages/CreateTicket";
+import Settings from "./pages/Settings";
 import { AuthCallback } from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
@@ -42,6 +43,7 @@ const App = () => (
               <Route path="/app/event/:id" element={<EventDetail />} />
               <Route path="/app/ticket/:id" element={<TicketDetail />} />
               <Route path="/app/profile" element={<Profile />} />
+              <Route path="/app/settings" element={<Settings />} />
               <Route path="/create-ticket" element={<CreateTicket />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

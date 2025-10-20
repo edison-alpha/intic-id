@@ -3,19 +3,33 @@ import { Button } from '@/components/ui/button';
 import { useWallet } from '@/contexts/WalletContext';
 import { toast } from 'sonner';
 import { Loader2, Ticket } from 'lucide-react';
+import {
+  sendPurchaseConfirmation,
+  getStoredEmail,
+  storeEmail,
+  promptForEmail
+} from '@/services/ticketPurchaseNotification';
 
 interface MintNFTButtonProps {
   contractId: string;
   price: number; // in microSTX
   onSuccess?: () => void;
   disabled?: boolean;
+  eventName?: string;
+  eventDate?: string;
+  eventTime?: string;
+  location?: string;
 }
 
 export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
   contractId,
   price,
   onSuccess,
-  disabled = false
+  disabled = false,
+  eventName = 'Event',
+  eventDate = 'TBA',
+  eventTime = 'TBA',
+  location = 'Venue TBA'
 }) => {
   const { wallet } = useWallet();
   const [isMinting, setIsMinting] = useState(false);
@@ -65,7 +79,6 @@ export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
         }
       } catch (e) {
         // Ignore errors - contract might not have this function
-        console.log('Could not check contract ownership:', e);
       }
 
       // Use wallet provider to call contract
@@ -84,18 +97,10 @@ export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
         throw new Error('Wallet provider not found');
       }
 
-      console.log('💰 Minting NFT Ticket...');
-      console.log('Contract:', `${contractAddress}.${contractName}`);
-      console.log('Price:', price, 'microSTX =', (price / 1000000).toFixed(2), 'STX');
-      console.log('User address:', wallet.address);
-      console.log('Is contract owner:', isOwner);
       
       if (isOwner) {
-        console.log('🎟️ Owner minting - no payment required');
         toast.loading('Minting ticket as event organizer (free)...', { id: 'mint-nft' });
       }
-
-      console.log('📤 Sending transaction to wallet with Allow mode...');
       
       // Call contract with Allow mode to permit the STX transfer
       const response = await provider.request('stx_callContract', {
@@ -106,7 +111,6 @@ export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
         postConditionMode: 'allow', // String format: allow the STX transfer
       });
 
-      console.log('✅ Transaction response received:', response);
       toast.dismiss('mint-nft');
 
       // Handle successful response
@@ -116,22 +120,17 @@ export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
         
         if (typeof response === 'string') {
           txId = response;
-          console.log('📝 TxId (string format):', txId);
         } else if (response.result) {
           txId = typeof response.result === 'string' 
             ? response.result 
             : response.result.txid || response.result.txId;
-          console.log('📝 TxId (result format):', txId);
         } else if (response.txid || response.txId) {
           txId = response.txid || response.txId;
-          console.log('📝 TxId (direct format):', txId);
         }
         
         if (txId) {
           const explorerUrl = `https://explorer.hiro.so/txid/${txId}?chain=testnet`;
-          console.log('🔍 View transaction:', explorerUrl);
-          console.log('⏳ Wait ~30 seconds for transaction to be mined...');
-          
+
           toast.success('NFT Ticket transaction submitted!', {
             description: `TxID: ${txId.slice(0, 8)}...${txId.slice(-8)}\nWait for confirmation (~30s)`,
             duration: 10000,
@@ -140,6 +139,43 @@ export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
               onClick: () => window.open(explorerUrl, '_blank')
             }
           });
+
+          // Send purchase confirmation email
+          setTimeout(async () => {
+            let userEmail = getStoredEmail();
+
+            if (!userEmail) {
+              // Prompt for email if not stored
+              userEmail = await promptForEmail();
+              if (userEmail) {
+                storeEmail(userEmail);
+              }
+            }
+
+            if (userEmail) {
+              const ticketNumber = `#TKT-${txId.slice(0, 8).toUpperCase()}`;
+              const priceInSTX = (price / 1000000).toFixed(4);
+
+              const emailResult = await sendPurchaseConfirmation({
+                userEmail,
+                eventName,
+                eventDate,
+                eventTime,
+                location,
+                ticketNumber,
+                price: priceInSTX,
+                transactionId: txId,
+                contractId
+              });
+
+              if (emailResult.success) {
+                toast.success('Confirmation email sent!', {
+                  description: `Check ${userEmail} for ticket details`,
+                  duration: 5000
+                });
+              }
+            }
+          }, 2000);
 
           if (onSuccess) {
             // Wait longer before refresh to allow transaction to confirm

@@ -95,27 +95,32 @@ export const parseClarityValue = (json: any): any => {
     return tupleObj;
   }
 
+  // Handle string types with length specifier like "(string-ascii 46)"
+  if (typeStr.startsWith('(string-ascii') || typeStr.startsWith('(string-utf8')) {
+    return json.value;
+  }
+
   switch (typeStr) {
     case 'uint':
     case 'int':
       return typeof json.value === 'string' ? BigInt(json.value) : BigInt(json.value);
-    
+
     case 'bool':
       return json.value;
-    
+
     case 'string-ascii':
     case 'string-utf8':
       return json.value;
-    
+
     case 'principal':
       return json.value;
-    
+
     case 'optional':
       return json.value ? parseClarityValue(json.value) : null;
-    
+
     case 'list':
       return json.value.map((item: any) => parseClarityValue(item));
-    
+
     default:
       return json.value;
   }

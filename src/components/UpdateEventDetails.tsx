@@ -115,10 +115,7 @@ export default function UpdateEventDetails({
         return `0x${Buffer.from(serialized).toString('hex')}`;
       });
 
-      console.log('📝 Calling contract function:', functionName);
-      console.log('📦 Arguments (raw):', args);
-      console.log('📦 Arguments (serialized):', serializedArgs);
-      console.log('🏠 Contract:', `${contractAddress}.${contractName}`);
+
 
       const response = await provider.request('stx_callContract', {
         contract: `${contractAddress}.${contractName}`,
@@ -128,7 +125,7 @@ export default function UpdateEventDetails({
         postConditionMode: 'allow',
       });
 
-      console.log('✅ Response:', response);
+
 
       if (response.txId) {
         toast({
@@ -308,15 +305,7 @@ export default function UpdateEventDetails({
 
       const timestamp = new Date(eventDate).getTime();
 
-      console.log('📝 Batch update all event details');
-      console.log('📦 Data:', {
-        eventName,
-        venue,
-        venueAddress,
-        venueCoordinates,
-        imageUri,
-        timestamp
-      });
+
 
       // Prepare Clarity values
       const clarityArgs = [
@@ -334,7 +323,7 @@ export default function UpdateEventDetails({
         return `0x${Buffer.from(serialized).toString('hex')}`;
       });
 
-      console.log('📦 Serialized args:', serializedArgs);
+
 
       const response = await provider.request('stx_callContract', {
         contract: `${contractAddress}.${contractName}`,

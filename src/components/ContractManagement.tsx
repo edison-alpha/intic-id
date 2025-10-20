@@ -128,7 +128,6 @@ export const ContractManagement = () => {
           }
 
           // Auto-refresh data immediately after loading cache
-          console.log('🔄 Auto-refreshing data after loading cache...');
           setTimeout(() => {
             refreshData();
           }, 1000);
@@ -137,7 +136,6 @@ export const ContractManagement = () => {
         }
       } else {
         // No cache - auto-load data from blockchain
-        console.log('🔍 No cache found, loading from blockchain...');
         setTimeout(() => {
           indexContractsFromHiro();
         }, 500);
@@ -177,10 +175,7 @@ export const ContractManagement = () => {
       return;
     }
 
-    console.log('🔄 Auto-refresh enabled: every 30s');
-
     const interval = setInterval(async () => {
-      console.log('🔄 Auto-refreshing contract data...');
       await refreshData();
     }, 30000); // 30 seconds
 
@@ -306,7 +301,6 @@ export const ContractManagement = () => {
 
       // Index ALL contracts (assume all are NFT tickets)
       const nftContracts = contracts;
-      console.log('🎫 Contract names:', nftContracts.map(c => c.contractName));
 
       if (nftContracts.length === 0) {
         return;
@@ -335,7 +329,6 @@ export const ContractManagement = () => {
       if (nftData.length > 0) {
   // Data loaded, no toast
       } else {
-        console.log('ℹ️ No NFT data available (contracts might not be in registry yet)');
         // Don't show error - this is normal for new contracts
       }
 
