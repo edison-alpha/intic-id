@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Wallet, Key, Loader2 } from 'lucide-react';
+import { Wallet, Key, Loader2, Smartphone, QrCode, Copy, CheckCircle } from 'lucide-react';
 import { useWallet } from '@/contexts/WalletContext';
 
 interface WalletConnectModalProps {
@@ -10,14 +10,49 @@ interface WalletConnectModalProps {
 }
 
 export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ isOpen, onClose }) => {
-  const { connectWallet, isWalletConnected } = useWallet();
+  const { connectWallet, isWalletConnected, isMobile, connectMobileWallet } = useWallet();
+  const [showQR, setShowQR] = useState(false);
+  const [connectionUrl, setConnectionUrl] = useState('');
 
   const handleConnect = async () => {
     try {
       await connectWallet();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Wallet connection failed:', error);
+      if (error.message === 'MOBILE_WALLET_REQUIRED') {
+        // Modal will show mobile options instead
+        return;
+      }
+      // Handle other errors
+    }
+  };
+
+  const handleMobileConnect = async (walletType: 'xverse' | 'leather-mobile') => {
+    try {
+      await connectMobileWallet(walletType);
+      onClose();
+    } catch (error) {
+      console.error('Mobile wallet connection failed:', error);
+    }
+  };
+
+  const generateQRCode = (walletType: 'xverse' | 'leather-mobile') => {
+    const callbackUrl = `${window.location.origin}?wallet=${walletType}`;
+    const url = walletType === 'xverse'
+      ? `xverse://connect?callback=${encodeURIComponent(callbackUrl)}&network=testnet&dapp=intic`
+      : `leather://connect?callback=${encodeURIComponent(callbackUrl)}&network=testnet`;
+
+    setConnectionUrl(url);
+    setShowQR(true);
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      // You could add a toast notification here
+    } catch (error) {
+      console.error('Failed to copy:', error);
     }
   };
 
@@ -27,32 +62,100 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ isOpen, 
         <DialogHeader>
           <DialogTitle className="text-center text-xl font-bold">Connect Your Wallet</DialogTitle>
           <DialogDescription className="text-center">
-            Connect your Stacks wallet to access Stacks features securely.
+            {isMobile
+              ? "Connect your mobile wallet to access Stacks features securely."
+              : "Connect your Stacks wallet to access Stacks features securely."
+            }
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-6">
-          <Button
-            onClick={handleConnect}
-            disabled={isWalletConnected}
-            className="w-full flex items-center gap-3 h-12 bg-[#FE5C02] hover:bg-[#E54F02] text-white"
-          >
-            <Wallet className="w-5 h-5" />
-            <div className="text-left">
-              <div className="font-semibold">
-                {isWalletConnected ? 'Wallet Connected' : 'Connect Stacks Wallet'}
+          {isMobile ? (
+            // Mobile wallet options
+            <>
+              <Button
+                onClick={() => handleMobileConnect('xverse')}
+                className="w-full flex items-center gap-3 h-12 bg-[#FE5C02] hover:bg-[#E54F02] text-white"
+              >
+                <Smartphone className="w-5 h-5" />
+                <div className="text-left">
+                  <div className="font-semibold">Xverse Wallet</div>
+                  <div className="text-xs opacity-90">Mobile wallet for Stacks</div>
+                </div>
+              </Button>
+
+              <Button
+                onClick={() => handleMobileConnect('leather-mobile')}
+                variant="outline"
+                className="w-full flex items-center gap-3 h-12"
+              >
+                <Wallet className="w-5 h-5" />
+                <div className="text-left">
+                  <div className="font-semibold">Leather Mobile</div>
+                  <div className="text-xs opacity-90">Mobile wallet app</div>
+                </div>
+              </Button>
+
+              <Button
+                onClick={() => generateQRCode('xverse')}
+                variant="outline"
+                className="w-full flex items-center gap-3 h-12"
+              >
+                <QrCode className="w-5 h-5" />
+                <div className="text-left">
+                  <div className="font-semibold">QR Code</div>
+                  <div className="text-xs opacity-90">Scan with any Stacks wallet</div>
+                </div>
+              </Button>
+
+              {showQR && connectionUrl && (
+                <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+                  <p className="text-sm text-gray-300 mb-2">Scan QR code with your wallet app:</p>
+                  <div className="bg-white p-4 rounded-lg inline-block">
+                    {/* Placeholder for QR code - you would integrate a QR code library here */}
+                    <div className="w-32 h-32 bg-gray-200 flex items-center justify-center text-gray-600 text-xs">
+                      QR Code Placeholder<br/>
+                      <span className="text-xs break-all max-w-24">{connectionUrl.substring(0, 50)}...</span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => copyToClipboard(connectionUrl)}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-full"
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy Link
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            // Desktop wallet options
+            <Button
+              onClick={handleConnect}
+              disabled={isWalletConnected}
+              className="w-full flex items-center gap-3 h-12 bg-[#FE5C02] hover:bg-[#E54F02] text-white"
+            >
+              <Wallet className="w-5 h-5" />
+              <div className="text-left">
+                <div className="font-semibold">
+                  {isWalletConnected ? 'Wallet Connected' : 'Connect Stacks Wallet'}
+                </div>
+                <div className="text-xs opacity-90">
+                  {isWalletConnected ? 'Your wallet is ready to use' : 'Secure wallet for Stacks'}
+                </div>
               </div>
-              <div className="text-xs opacity-90">
-                {isWalletConnected ? 'Your wallet is ready to use' : 'Secure wallet for Stacks'}
-              </div>
-            </div>
-          </Button>
+            </Button>
+          )}
         </div>
 
         <div className="mt-6 p-4 bg-gray-900 rounded-lg">
           <p className="text-xs text-gray-400 text-center">
-            By connecting, you agree to use Stacks wallet infrastructure.
-            Your keys are non-custodial and encrypted.
+            {isMobile
+              ? "By connecting, you agree to use Stacks wallet infrastructure. Your keys are non-custodial and encrypted."
+              : "By connecting, you agree to use Stacks wallet infrastructure. Your keys are non-custodial and encrypted."
+            }
           </p>
         </div>
       </DialogContent>

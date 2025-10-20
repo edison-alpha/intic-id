@@ -26,6 +26,8 @@ interface WalletContextType {
     functionArgs: any[];
     onFinish?: (data: any) => void;
   }) => Promise<any>;
+  isMobile: boolean;
+  connectMobileWallet: (walletType: 'xverse' | 'leather-mobile') => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -45,6 +47,50 @@ interface WalletProviderProps {
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [wallet, setWallet] = useState<{ address: string; publicKey?: string } | null>(null);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  // Handle mobile wallet callback
+  useEffect(() => {
+    const handleMobileWalletCallback = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const address = urlParams.get('address');
+      const publicKey = urlParams.get('publicKey');
+
+      if (address) {
+        const walletData: { address: string; publicKey?: string } = {
+          address
+        };
+
+        if (publicKey) {
+          walletData.publicKey = publicKey;
+        }
+
+        setWallet(walletData);
+        setIsWalletConnected(true);
+        localStorage.setItem('wallet-address', JSON.stringify(walletData));
+
+        // Clean up URL
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+
+        console.log('✅ Mobile wallet connected:', walletData);
+      }
+    };
+
+    handleMobileWalletCallback();
+  }, []);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkIsMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const mobileRegex = /android|avantgo|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows (ce|phone)|xda|xiino/i;
+      setIsMobile(mobileRegex.test(userAgent) || window.innerWidth < 768);
+    };
+
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
 
   useEffect(() => {
     // Check for stored wallet connection
@@ -63,6 +109,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   const connectWallet = async () => {
     try {
+      // Check if we're on mobile first
+      if (isMobile) {
+        throw new Error('MOBILE_WALLET_REQUIRED');
+      }
+
       // Try LeatherProvider first (new API)
       if (typeof window !== 'undefined' && window.LeatherProvider) {
         const response = await window.LeatherProvider.request('getAddresses');
@@ -476,6 +527,44 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   };
 
+  const connectMobileWallet = async (walletType: 'xverse' | 'leather-mobile') => {
+    try {
+      const callbackUrl = encodeURIComponent(`${window.location.origin}?wallet=${walletType}`);
+
+      if (walletType === 'xverse') {
+        // Xverse deep linking with callback
+        const xverseUrl = `xverse://connect?callback=${callbackUrl}&network=testnet&dapp=intic`;
+        console.log('🔗 Opening Xverse:', xverseUrl);
+
+        // Try deep linking first
+        window.location.href = xverseUrl;
+
+        // Show instructions for manual connection
+        setTimeout(() => {
+          if (!isWalletConnected) {
+            alert(`Xverse tidak terdeteksi. Silakan:\n\n1. Install Xverse dari App Store/Play Store\n2. Buka Xverse dan scan QR code\n3. Atau buka link ini di Xverse: ${xverseUrl}`);
+          }
+        }, 3000);
+
+      } else if (walletType === 'leather-mobile') {
+        // Leather mobile deep linking
+        const leatherUrl = `leather://connect?callback=${callbackUrl}&network=testnet`;
+        console.log('🔗 Opening Leather:', leatherUrl);
+
+        window.location.href = leatherUrl;
+
+        setTimeout(() => {
+          if (!isWalletConnected) {
+            alert(`Leather mobile tidak terdeteksi. Silakan:\n\n1. Install Leather dari App Store/Play Store\n2. Buka Leather dan scan QR code\n3. Atau buka link ini di Leather: ${leatherUrl}`);
+          }
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('❌ Mobile wallet connection failed:', error);
+      throw new Error('Gagal menghubungkan wallet mobile. Silakan coba lagi.');
+    }
+  };
+
   const value: WalletContextType = {
     wallet,
     isWalletConnected,
@@ -486,6 +575,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     deployContract,
     getBalance,
     callContractFunction,
+    isMobile,
+    connectMobileWallet,
   };
 
   return (
