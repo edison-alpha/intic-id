@@ -80,7 +80,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     handleMobileWalletCallback();
   }, []);
 
-  // Detect mobile device
+  // Detect mobile device and Xverse
   useEffect(() => {
     const checkIsMobile = () => {
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
@@ -91,6 +91,66 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     checkIsMobile();
     window.addEventListener('resize', checkIsMobile);
     return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
+
+  // Check for Xverse in-app browser
+  useEffect(() => {
+    const checkXverseInApp = () => {
+      // Check if we're in Xverse's webview
+      const isXverseWebview = navigator.userAgent.includes('Xverse') ||
+                             window.location.search.includes('xverse') ||
+                             (window as any).webkit?.messageHandlers?.xverse;
+
+      if (isXverseWebview) {
+        console.log('📱 Detected Xverse in-app browser');
+
+        // Try to inject Xverse provider if not already available
+        if (typeof window !== 'undefined' && !(window as any).XverseProvider) {
+          (window as any).XverseProvider = {
+            request: async (method: string, params?: any) => {
+              return new Promise((resolve, reject) => {
+                // Use Xverse's postMessage API
+                const messageId = Date.now().toString();
+
+                const message = {
+                  id: messageId,
+                  method,
+                  params: params || {}
+                };
+
+                const handleResponse = (event: MessageEvent) => {
+                  if (event.data && event.data.id === messageId) {
+                    window.removeEventListener('message', handleResponse);
+                    if (event.data.error) {
+                      reject(new Error(event.data.error));
+                    } else {
+                      resolve(event.data.result);
+                    }
+                  }
+                };
+
+                window.addEventListener('message', handleResponse);
+
+                // Send message to Xverse
+                if ((window as any).webkit?.messageHandlers?.xverse) {
+                  (window as any).webkit.messageHandlers.xverse.postMessage(message);
+                } else {
+                  window.parent.postMessage(message, '*');
+                }
+
+                // Timeout after 30 seconds
+                setTimeout(() => {
+                  window.removeEventListener('message', handleResponse);
+                  reject(new Error('Xverse connection timeout'));
+                }, 30000);
+              });
+            }
+          };
+        }
+      }
+    };
+
+    checkXverseInApp();
   }, []);
 
   useEffect(() => {
@@ -134,6 +194,96 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             }
           } catch (error) {
             console.log('Xverse in-app API not available, trying other methods');
+          }
+        }
+
+        // Check if we're in Xverse webview (when accessed via explore)
+        const isXverseWebview = navigator.userAgent.includes('Xverse') ||
+                               window.location.search.includes('xverse') ||
+                               (window as any).webkit?.messageHandlers?.xverse;
+
+        if (isXverseWebview) {
+          console.log('📱 Detected Xverse webview, trying direct connection...');
+          try {
+            // Try using the injected XverseProvider first
+            if ((window as any).XverseProvider) {
+              const response = await (window as any).XverseProvider.request('getAddresses');
+              console.log('📱 Xverse provider response:', response);
+
+              if (response && response.result && response.result.addresses) {
+                const addresses = response.result.addresses;
+                const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
+
+                if (stxAddress) {
+                  const walletData = {
+                    address: stxAddress.address,
+                    publicKey: stxAddress.publicKey
+                  };
+
+                  setWallet(walletData);
+                  setIsWalletConnected(true);
+                  localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                  console.log('✅ Connected via Xverse webview');
+                  return;
+                }
+              }
+            }
+
+            // Try direct postMessage to Xverse
+            const response = await new Promise((resolve, reject) => {
+              const messageId = 'xverse_connect_' + Date.now();
+
+              const message = {
+                id: messageId,
+                method: 'getAddresses',
+                params: {}
+              };
+
+              const handleResponse = (event: MessageEvent) => {
+                if (event.data && event.data.id === messageId) {
+                  window.removeEventListener('message', handleResponse);
+                  resolve(event.data);
+                }
+              };
+
+              window.addEventListener('message', handleResponse);
+
+              // Send to Xverse
+              if ((window as any).webkit?.messageHandlers?.xverse) {
+                (window as any).webkit.messageHandlers.xverse.postMessage(message);
+              } else {
+                window.parent.postMessage(message, '*');
+              }
+
+              setTimeout(() => {
+                window.removeEventListener('message', handleResponse);
+                reject(new Error('Xverse connection timeout'));
+              }, 10000);
+            });
+
+            console.log('📱 Xverse direct response:', response);
+
+            // Process the response similar to extension
+            const responseData = response as any;
+            if (responseData && responseData.result && responseData.result.addresses) {
+              const addresses = responseData.result.addresses;
+              const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
+
+              if (stxAddress) {
+                const walletData = {
+                  address: stxAddress.address,
+                  publicKey: stxAddress.publicKey
+                };
+
+                setWallet(walletData);
+                setIsWalletConnected(true);
+                localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                console.log('✅ Connected via Xverse webview');
+                return;
+              }
+            }
+          } catch (error) {
+            console.log('❌ Xverse webview connection failed:', error);
           }
         }
 
