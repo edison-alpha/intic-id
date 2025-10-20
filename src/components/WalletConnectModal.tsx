@@ -14,6 +14,9 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ isOpen, 
   const [showQR, setShowQR] = useState(false);
   const [connectionUrl, setConnectionUrl] = useState('');
 
+  // Check if we're in Xverse in-app browser
+  const isInXverseApp = typeof window !== 'undefined' && window.XverseProvider;
+
   const handleConnect = async () => {
     try {
       await connectWallet();
@@ -73,40 +76,64 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ isOpen, 
           {isMobile ? (
             // Mobile wallet options
             <>
-              <Button
-                onClick={() => handleMobileConnect('xverse')}
-                className="w-full flex items-center gap-3 h-12 bg-[#FE5C02] hover:bg-[#E54F02] text-white"
-              >
-                <Smartphone className="w-5 h-5" />
-                <div className="text-left">
-                  <div className="font-semibold">Xverse Wallet</div>
-                  <div className="text-xs opacity-90">Mobile wallet for Stacks</div>
+              {isInXverseApp ? (
+                // User is already in Xverse in-app browser
+                <div className="text-center p-4 bg-green-900/20 border border-green-600/30 rounded-lg">
+                  <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <h3 className="text-lg font-semibold text-green-400 mb-2">Xverse Detected!</h3>
+                  <p className="text-sm text-gray-300 mb-4">
+                    You're using Xverse in-app browser. Click below to connect your wallet.
+                  </p>
+                  <Button
+                    onClick={handleConnect}
+                    className="w-full flex items-center gap-3 h-12 bg-[#FE5C02] hover:bg-[#E54F02] text-white"
+                  >
+                    <Smartphone className="w-5 h-5" />
+                    <div className="text-left">
+                      <div className="font-semibold">Connect Xverse Wallet</div>
+                      <div className="text-xs opacity-90">Already in Xverse browser</div>
+                    </div>
+                  </Button>
                 </div>
-              </Button>
+              ) : (
+                // Regular mobile options
+                <>
+                  <Button
+                    onClick={() => handleMobileConnect('xverse')}
+                    className="w-full flex items-center gap-3 h-12 bg-[#FE5C02] hover:bg-[#E54F02] text-white"
+                  >
+                    <Smartphone className="w-5 h-5" />
+                    <div className="text-left">
+                      <div className="font-semibold">Xverse Wallet</div>
+                      <div className="text-xs opacity-90">Mobile wallet for Stacks</div>
+                    </div>
+                  </Button>
 
-              <Button
-                onClick={() => handleMobileConnect('leather-mobile')}
-                variant="outline"
-                className="w-full flex items-center gap-3 h-12"
-              >
-                <Wallet className="w-5 h-5" />
-                <div className="text-left">
-                  <div className="font-semibold">Leather Mobile</div>
-                  <div className="text-xs opacity-90">Mobile wallet app</div>
-                </div>
-              </Button>
+                  <Button
+                    onClick={() => handleMobileConnect('leather-mobile')}
+                    variant="outline"
+                    className="w-full flex items-center gap-3 h-12"
+                  >
+                    <Wallet className="w-5 h-5" />
+                    <div className="text-left">
+                      <div className="font-semibold">Leather Mobile</div>
+                      <div className="text-xs opacity-90">Mobile wallet app</div>
+                    </div>
+                  </Button>
 
-              <Button
-                onClick={() => generateQRCode('xverse')}
-                variant="outline"
-                className="w-full flex items-center gap-3 h-12"
-              >
-                <QrCode className="w-5 h-5" />
-                <div className="text-left">
-                  <div className="font-semibold">QR Code</div>
-                  <div className="text-xs opacity-90">Scan with any Stacks wallet</div>
-                </div>
-              </Button>
+                  <Button
+                    onClick={() => generateQRCode('xverse')}
+                    variant="outline"
+                    className="w-full flex items-center gap-3 h-12"
+                  >
+                    <QrCode className="w-5 h-5" />
+                    <div className="text-left">
+                      <div className="font-semibold">QR Code</div>
+                      <div className="text-xs opacity-90">Scan with any Stacks wallet</div>
+                    </div>
+                  </Button>
+                </>
+              )}
 
               {showQR && connectionUrl && (
                 <div className="mt-4 p-4 bg-gray-800 rounded-lg">

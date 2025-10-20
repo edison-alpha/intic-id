@@ -6,6 +6,7 @@ declare global {
   interface Window {
     LeatherProvider?: any;
     HiroWalletProvider?: any;
+    XverseProvider?: any;
     btc?: any;
   }
 }
@@ -111,10 +112,36 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       // Check if we're on mobile first
       if (isMobile) {
+        // On mobile, try Xverse in-app browser API first
+        if (typeof window !== 'undefined' && window.XverseProvider) {
+          try {
+            const response = await window.XverseProvider.request('getAddresses');
+            if (response && response.result && response.result.addresses) {
+              const addresses = response.result.addresses;
+              const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
+
+              if (stxAddress) {
+                const walletData = {
+                  address: stxAddress.address,
+                  publicKey: stxAddress.publicKey
+                };
+
+                setWallet(walletData);
+                setIsWalletConnected(true);
+                localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                return;
+              }
+            }
+          } catch (error) {
+            console.log('Xverse in-app API not available, trying other methods');
+          }
+        }
+
+        // If Xverse in-app API fails, show mobile wallet options
         throw new Error('MOBILE_WALLET_REQUIRED');
       }
 
-      // Try LeatherProvider first (new API)
+      // Desktop: Try LeatherProvider first (new API)
       if (typeof window !== 'undefined' && window.LeatherProvider) {
         const response = await window.LeatherProvider.request('getAddresses');
 
@@ -199,15 +226,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       let provider = null;
 
-      // Try LeatherProvider first
-      if (typeof window !== 'undefined' && window.LeatherProvider) {
+      // Try XverseProvider first (for mobile)
+      if (typeof window !== 'undefined' && window.XverseProvider) {
+        provider = window.XverseProvider;
+      } else if (typeof window !== 'undefined' && window.LeatherProvider) {
         provider = window.LeatherProvider;
       } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
         provider = window.HiroWalletProvider;
       }
 
       if (!provider) {
-        throw new Error('Wallet extension not found. Please make sure Hiro Wallet or Leather is installed and unlocked.');
+        throw new Error('Wallet extension not found. Please make sure Hiro Wallet, Leather, or Xverse is installed and unlocked.');
       }
 
       // Use stx_transferStx method (correct Leather API)
@@ -263,8 +292,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       let provider = null;
 
-      // Try LeatherProvider first
-      if (typeof window !== 'undefined' && window.LeatherProvider) {
+      // Try XverseProvider first (for mobile)
+      if (typeof window !== 'undefined' && window.XverseProvider) {
+        provider = window.XverseProvider;
+      } else if (typeof window !== 'undefined' && window.LeatherProvider) {
         provider = window.LeatherProvider;
       } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
         provider = window.HiroWalletProvider;
@@ -475,7 +506,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
       // Get wallet provider (same as MintNFTButton)
       let provider = null;
-      if (typeof window !== 'undefined' && window.LeatherProvider) {
+      if (typeof window !== 'undefined' && window.XverseProvider) {
+        provider = window.XverseProvider;
+      } else if (typeof window !== 'undefined' && window.LeatherProvider) {
         provider = window.LeatherProvider;
       } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
         provider = window.HiroWalletProvider;
