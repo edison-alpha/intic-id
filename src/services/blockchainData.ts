@@ -1,22 +1,17 @@
 /**
  * Blockchain Data Service
- * Fetches re  try {
-    const existingContracts = getDeployedContracts();
-    existingContracts.push(contract);
-    localStorage.setItem('deployed_contracts', JSON.stringify(existingContracts));
-  } catch (error) {
-    // Silently handle localStorage errors in production
-  }from Stacks blockchain
+ * Fetches real data from Stacks blockchain
  * Replaces all dummy/mock data with on-chain queries
  */
 
-import { 
+import {
   callReadOnlyFunction,
   cvToValue,
   uintCV,
   standardPrincipalCV
 } from '@stacks/transactions';
 import { StacksTestnet, StacksMainnet } from '@stacks/network';
+import { cachedFetch, requestManager } from '@/utils/requestManager';
 
 const TESTNET = StacksTestnet;
 const MAINNET = StacksMainnet;
@@ -230,20 +225,16 @@ export const fetchUserTransactions = async (
   userAddress: string,
   isTestnet: boolean = true
 ): Promise<any[]> => {
-  const apiUrl = isTestnet 
+  const apiUrl = isTestnet
     ? 'https://api.testnet.hiro.so'
     : 'https://api.hiro.so';
-  
+
   try {
-    const response = await fetch(
-      `${apiUrl}/extended/v1/address/${userAddress}/transactions?limit=50`
+    const data = await cachedFetch<any>(
+      `${apiUrl}/extended/v1/address/${userAddress}/transactions?limit=50`,
+      {},
+      30000 // 30s cache for user transactions
     );
-    
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
     return data.results || [];
   } catch (error) {
     console.error('❌ Failed to fetch transactions:', error);
@@ -258,18 +249,16 @@ export const fetchSTXBalance = async (
   address: string,
   isTestnet: boolean = true
 ): Promise<number> => {
-  const apiUrl = isTestnet 
+  const apiUrl = isTestnet
     ? 'https://api.testnet.hiro.so'
     : 'https://api.hiro.so';
-  
+
   try {
-    const response = await fetch(`${apiUrl}/extended/v1/address/${address}/balances`);
-    
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
+    const data = await cachedFetch<any>(
+      `${apiUrl}/extended/v1/address/${address}/balances`,
+      {},
+      15000 // 15s cache for balance
+    );
     return Number(data.stx.balance) / 1000000; // Convert microSTX to STX
   } catch (error) {
     console.error('❌ Failed to fetch STX balance:', error);

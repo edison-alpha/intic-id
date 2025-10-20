@@ -9,20 +9,13 @@ import { getAllRegistryEvents } from './registryService';
 import { getEventDataFromContract } from './nftIndexer';
 import { StacksTestnet } from '@stacks/network';
 import { callReadOnlyFunction, cvToValue, uintCV } from '@stacks/transactions';
+import { requestManager, cachedFetch } from '@/utils/requestManager';
 
 const network = new StacksTestnet();
 const HIRO_API_BASE = 'https://api.testnet.hiro.so';
 const HIRO_API_KEY = import.meta.env.VITE_HIRO_API_KEY;
 
-// Rate limiting: Delay between requests
-const REQUEST_DELAY = 500; // 500ms between requests
-
-// Simple cache to avoid duplicate requests
-const apiCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 60000; // 1 minute cache
-
 // Event data cache with longer TTL (event data doesn't change often)
-const eventDataCache = new Map<string, { data: any; timestamp: number }>();
 const EVENT_DATA_CACHE_TTL = 300000; // 5 minutes cache for event data
 
 /**
@@ -38,13 +31,6 @@ function getHiroHeaders(): HeadersInit {
   }
 
   return headers;
-}
-
-/**
- * Delay helper for rate limiting
- */
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Internal interfaces for blockchain events
@@ -147,50 +133,35 @@ export interface ActivityItem {
 
 /**
  * Fetch from Hiro API with caching and rate limiting
+ * Now using centralized request manager
  */
 async function fetchFromHiroAPI(url: string): Promise<any> {
-  // Check cache first
-  const cached = apiCache.get(url);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log(`    💾 Using cached data for ${url.substring(0, 80)}...`);
-    return cached.data;
-  }
-
-  // Rate limiting delay
-  await delay(REQUEST_DELAY);
+  const cacheKey = `hiro:${url}`;
 
   try {
-    const response = await fetch(url, {
-      headers: getHiroHeaders(),
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null; // Not found is OK
-      }
-      if (response.status === 429) {
-        console.warn(`    ⚠️ Rate limited, waiting 2s...`);
-        await delay(2000);
-        // Retry once
-        const retryResponse = await fetch(url, {
+    return await requestManager.request(
+      cacheKey,
+      async () => {
+        const response = await fetch(url, {
           headers: getHiroHeaders(),
         });
-        if (!retryResponse.ok) {
-          throw new Error(`HTTP ${retryResponse.status}`);
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            return null; // Not found is OK
+          }
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        const data = await retryResponse.json();
-        apiCache.set(url, { data, timestamp: Date.now() });
-        return data;
+
+        return response.json();
+      },
+      {
+        cacheTTL: 60000, // 1 minute
+        deduplicate: true,
+        maxRetries: 3,
+        retryDelay: 2000, // Start with 2s for Hiro API
       }
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Cache the result
-    apiCache.set(url, { data, timestamp: Date.now() });
-
-    return data;
+    );
   } catch (error) {
     console.warn(`    ⚠️ API fetch failed:`, error);
     return null;
@@ -484,23 +455,21 @@ async function convertMintsToActivitiesOptimized(
 ): Promise<ActivityItem[]> {
   const eventNameFallback = extractEventNameFromContract(contractName);
 
-  // Check cache first for event data
-  const cached = eventDataCache.get(contractId);
+  // Fetch event data using request manager for deduplication
   let eventData: any = null;
-
-  if (cached && Date.now() - cached.timestamp < EVENT_DATA_CACHE_TTL) {
-    console.log(`    💾 Using cached event data for ${contractId}`);
-    eventData = cached.data;
-  } else {
-    // Fetch and cache event data
-    try {
-      eventData = await getEventDataFromContract(contractId);
-      if (eventData) {
-        eventDataCache.set(contractId, { data: eventData, timestamp: Date.now() });
+  try {
+    eventData = await requestManager.request(
+      `event-data:${contractId}`,
+      () => getEventDataFromContract(contractId),
+      {
+        cacheTTL: EVENT_DATA_CACHE_TTL,
+        deduplicate: true,
+        maxRetries: 2,
+        retryDelay: 1000,
       }
-    } catch (err) {
-      console.warn(`⚠️ Could not fetch event data for mints ${contractId}:`, err);
-    }
+    );
+  } catch (err) {
+    console.warn(`⚠️ Could not fetch event data for mints ${contractId}:`, err);
   }
 
   // Use real data if available, otherwise use fallback
@@ -616,24 +585,23 @@ function convertTransfersToActivities(
 async function convertDeploymentsToActivitiesOptimized(
   deployments: ContractDeployEvent[]
 ): Promise<ActivityItem[]> {
-  // OPTIMIZATION: Fetch all event data in parallel
+  // OPTIMIZATION: Fetch all event data in parallel with request manager
   const eventDataPromises = deployments.map(async (deploy) => {
     const contractName = deploy.contractId.split('.')[1] || 'Event Contract';
     const eventNameFallback = extractEventNameFromContract(contractName);
 
-    // Check cache first
-    const cached = eventDataCache.get(deploy.contractId);
-    if (cached && Date.now() - cached.timestamp < EVENT_DATA_CACHE_TTL) {
-      console.log(`    💾 Using cached event data for ${deploy.contractId}`);
-      return { deploy, eventData: cached.data, eventNameFallback };
-    }
-
-    // Fetch event data
+    // Fetch event data using request manager for deduplication
     try {
-      const eventData = await getEventDataFromContract(deploy.contractId);
-      if (eventData) {
-        eventDataCache.set(deploy.contractId, { data: eventData, timestamp: Date.now() });
-      }
+      const eventData = await requestManager.request(
+        `event-data:${deploy.contractId}`,
+        () => getEventDataFromContract(deploy.contractId),
+        {
+          cacheTTL: EVENT_DATA_CACHE_TTL,
+          deduplicate: true,
+          maxRetries: 2,
+          retryDelay: 1000,
+        }
+      );
       return { deploy, eventData, eventNameFallback };
     } catch (err) {
       console.warn(`⚠️ Could not fetch event data for ${deploy.contractId}:`, err);

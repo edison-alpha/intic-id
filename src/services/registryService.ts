@@ -6,6 +6,7 @@
 
 import { cvToJSON, hexToCV, uintCV, serializeCV } from '@stacks/transactions';
 import { getRegistryContract } from '@/config/contracts';
+import { requestManager } from '@/utils/requestManager';
 
 const NETWORK_URL = 'https://api.testnet.hiro.so';
 
@@ -25,6 +26,7 @@ export interface RegistryEvent {
 
 /**
  * Call read-only function on registry contract
+ * Now with request deduplication and caching
  */
 async function callRegistryReadOnly(
   functionName: string,
@@ -35,28 +37,43 @@ async function callRegistryReadOnly(
 
   const url = `${NETWORK_URL}/v2/contracts/call-read/${address}/${name}/${functionName}`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  // Create cache key from function name and args
+  const cacheKey = `registry:${functionName}:${functionArgs.join(':')}`;
+
+  // Use request manager for deduplication and caching
+  return requestManager.request(
+    cacheKey,
+    async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: address,
+          arguments: functionArgs,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Registry call failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.okay) {
+        throw new Error(`Registry returned error: ${data.cause}`);
+      }
+
+      return data.result;
     },
-    body: JSON.stringify({
-      sender: address,
-      arguments: functionArgs,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Registry call failed: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-
-  if (!data.okay) {
-    throw new Error(`Registry returned error: ${data.cause}`);
-  }
-
-  return data.result;
+    {
+      cacheTTL: functionName === 'get-total-events' ? 30000 : 60000, // 30s for total, 60s for others
+      deduplicate: true,
+      maxRetries: 3,
+      retryDelay: 1000,
+    }
+  );
 }
 
 /**
