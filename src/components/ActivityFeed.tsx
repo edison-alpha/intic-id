@@ -18,14 +18,17 @@ import {
   Share2,
   Heart,
   MessageCircle,
-  Eye
+  Eye,
+  Rocket
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { getGlobalActivity, getUserActivity } from '@/services/activityService';
+import { useNavigate } from 'react-router-dom';
 
 interface ActivityItem {
   id: string;
-  type: 'purchase' | 'sale' | 'transfer' | 'event_attend' | 'badge_earned' | 'stake' | 'reward' | 'referral' | 'social';
+  type: 'purchase' | 'sale' | 'transfer' | 'event_attend' | 'badge_earned' | 'stake' | 'reward' | 'referral' | 'social' | 'deploy';
   timestamp: string;
   user: {
     address: string;
@@ -42,6 +45,7 @@ interface ActivityItem {
       name: string;
       image: string;
       date: string;
+      contractId?: string;
     };
     ticket?: {
       id: string;
@@ -63,6 +67,10 @@ interface ActivityItem {
       comments: number;
       shares: number;
       isLiked: boolean;
+    };
+    deployment?: {
+      contractId: string;
+      contractName: string;
     };
   };
   metadata: {
@@ -89,252 +97,75 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   maxItems = 20,
   className = ''
 }) => {
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const navigate = useNavigate();
+  const [allActivities, setAllActivities] = useState<ActivityItem[]>([]); // Store all fetched activities
+  const [displayedActivities, setDisplayedActivities] = useState<ActivityItem[]>([]); // Activities currently shown
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'purchase' | 'event' | 'badge' | 'social'>('all');
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'purchase' | 'event' | 'badge' | 'social' | 'deploy'>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     fetchActivities();
-  }, [userId, showUserActivity, showGlobalActivity, filter]);
+  }, [userId, showUserActivity, showGlobalActivity]);
+
+  useEffect(() => {
+    // Apply filter and pagination when filter changes
+    applyFilterAndPagination();
+  }, [filter, allActivities, page]);
 
   const fetchActivities = async () => {
     setLoading(true);
+    setPage(1); // Reset to page 1 on new fetch
     try {
-      // Simulate API call - replace with actual activity feed fetching
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Fetch real blockchain activities
+      let fetchedActivities: ActivityItem[] = [];
 
-      const mockActivities: ActivityItem[] = [
-        {
-          id: '1',
-          type: 'purchase',
-          timestamp: '2025-06-15T14:30:00Z',
-          user: {
-            address: 'SP2J6ZY48GV1EZ5V2V5RB9MP66SW86PYKKNRV9EJ7',
-            displayName: 'CryptoFan123',
-            tier: 'Gold'
-          },
-          data: {
-            title: 'Purchased VIP Ticket',
-            description: 'Bought 2x VIP tickets for Summer Music Festival',
-            amount: '0.15',
-            currency: 'sBTC',
-            event: {
-              name: 'Summer Music Festival 2025',
-              image: '/src/img/banner (1).png',
-              date: '2025-07-15'
-            },
-            ticket: {
-              id: 'PRT-001234',
-              section: 'VIP-A',
-              tier: 'VIP'
-            },
-            transaction: {
-              hash: '0x1234567890abcdef',
-              block: 145692
-            },
-            social: {
-              likes: 12,
-              comments: 3,
-              shares: 2,
-              isLiked: false
-            }
-          },
-          metadata: {
-            network: 'Stacks',
-            platform: 'Pulse Robot',
-            category: 'NFT',
-            isVerified: true,
-            isPublic: true
-          }
-        },
-        {
-          id: '2',
-          type: 'badge_earned',
-          timestamp: '2025-06-15T13:45:00Z',
-          user: {
-            address: 'SP1HTBVD3JG9C05J7HBJTHGR0GGW7KX17ECNXF1DK',
-            displayName: 'EventCollector',
-            tier: 'Silver'
-          },
-          data: {
-            title: 'Badge Unlocked',
-            description: 'Earned "Music Enthusiast" Level 3 badge',
-            badge: {
-              name: 'Music Enthusiast',
-              tier: 3,
-              rarity: 'Rare',
-              image: '/src/img/badges/music-enthusiast.png'
-            },
-            social: {
-              likes: 25,
-              comments: 8,
-              shares: 5,
-              isLiked: true
-            }
-          },
-          metadata: {
-            network: 'Stacks',
-            platform: 'Pulse Robot',
-            category: 'Achievement',
-            isVerified: true,
-            isPublic: true
-          }
-        },
-        {
-          id: '3',
-          type: 'event_attend',
-          timestamp: '2025-06-14T20:00:00Z',
-          user: {
-            address: 'SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6NKMKW6T7',
-            displayName: 'MusicLover99',
-            tier: 'Platinum'
-          },
-          data: {
-            title: 'Event Attended',
-            description: 'Checked in at Jazz Night Live',
-            event: {
-              name: 'Jazz Night Live',
-              image: '/background-section1.png',
-              date: '2025-06-14'
-            },
-            social: {
-              likes: 8,
-              comments: 2,
-              shares: 1,
-              isLiked: false
-            }
-          },
-          metadata: {
-            network: 'Stacks',
-            platform: 'Pulse Robot',
-            category: 'Event',
-            isVerified: true,
-            isPublic: true
-          }
-        },
-        {
-          id: '4',
-          type: 'sale',
-          timestamp: '2025-06-14T16:22:00Z',
-          user: {
-            address: 'SP2XKZ2S2S5TY2PR8K7Y9NPQK3W4QJHX5D9MT8QR',
-            displayName: 'TicketTrader',
-            tier: 'Gold'
-          },
-          data: {
-            title: 'Ticket Sold',
-            description: 'Sold General Admission ticket on secondary market',
-            amount: '0.08',
-            currency: 'sBTC',
-            event: {
-              name: 'Web3 Conference 2025',
-              image: '/background-section3.png',
-              date: '2025-08-10'
-            },
-            transaction: {
-              hash: '0xabcdef1234567890',
-              block: 145680
-            },
-            social: {
-              likes: 5,
-              comments: 1,
-              shares: 0,
-              isLiked: false
-            }
-          },
-          metadata: {
-            network: 'Stacks',
-            platform: 'Pulse Robot',
-            category: 'Trade',
-            isVerified: true,
-            isPublic: true
-          }
-        },
-        {
-          id: '5',
-          type: 'reward',
-          timestamp: '2025-06-14T10:00:00Z',
-          user: {
-            address: 'SP1ABC123DEF456GHI789JKL012MNO345PQR678ST',
-            displayName: 'StakingPro',
-            tier: 'Platinum'
-          },
-          data: {
-            title: 'Staking Reward',
-            description: 'Received monthly staking rewards',
-            amount: '2.5',
-            currency: 'sBTC',
-            social: {
-              likes: 15,
-              comments: 4,
-              shares: 3,
-              isLiked: true
-            }
-          },
-          metadata: {
-            network: 'Stacks',
-            platform: 'Pulse Robot',
-            category: 'DeFi',
-            isVerified: true,
-            isPublic: false
-          }
-        },
-        {
-          id: '6',
-          type: 'referral',
-          timestamp: '2025-06-13T14:30:00Z',
-          user: {
-            address: 'SP3XYZ789ABC123DEF456GHI789JKL012MNO345PQ',
-            displayName: 'Ambassador1',
-            tier: 'Gold'
-          },
-          data: {
-            title: 'Referral Bonus',
-            description: 'Earned referral bonus for bringing new user',
-            amount: '0.01',
-            currency: 'sBTC',
-            social: {
-              likes: 6,
-              comments: 1,
-              shares: 2,
-              isLiked: false
-            }
-          },
-          metadata: {
-            network: 'Stacks',
-            platform: 'Pulse Robot',
-            category: 'Social',
-            isVerified: true,
-            isPublic: true
-          }
-        }
-      ];
+      if (showUserActivity && userId) {
+        // Fetch user-specific activity (optimized)
+        fetchedActivities = await getUserActivity(userId, 30);
+      } else if (showGlobalActivity) {
+        // Fetch global activity (optimized for fast initial load)
+        fetchedActivities = await getGlobalActivity(30);
+      }
 
-      const filteredActivities = filter === 'all'
-        ? mockActivities
-        : mockActivities.filter(activity => {
-            switch (filter) {
-              case 'purchase':
-                return ['purchase', 'sale'].includes(activity.type);
-              case 'event':
-                return activity.type === 'event_attend';
-              case 'badge':
-                return activity.type === 'badge_earned';
-              case 'social':
-                return ['referral', 'social'].includes(activity.type);
-              default:
-                return true;
-            }
-          });
-
-      setActivities(filteredActivities.slice(0, maxItems));
+      setAllActivities(fetchedActivities);
     } catch (error) {
       console.error('Error fetching activities:', error);
       toast.error('Failed to load activity feed');
+      setAllActivities([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const applyFilterAndPagination = () => {
+    // Apply filter
+    const filteredActivities = filter === 'all'
+      ? allActivities
+      : allActivities.filter(activity => {
+          switch (filter) {
+            case 'purchase':
+              return ['purchase', 'sale'].includes(activity.type);
+            case 'event':
+              return activity.type === 'event_attend';
+            case 'badge':
+              return activity.type === 'badge_earned';
+            case 'social':
+              return ['referral', 'social'].includes(activity.type);
+            case 'deploy':
+              return activity.type === 'deploy';
+            default:
+              return true;
+          }
+        });
+
+    // Apply pagination
+    const startIndex = 0;
+    const endIndex = page * ITEMS_PER_PAGE;
+    setDisplayedActivities(filteredActivities.slice(startIndex, endIndex));
   };
 
   const handleRefresh = async () => {
@@ -345,10 +176,10 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   };
 
   const handleLike = async (activityId: string) => {
-    const activity = activities.find(a => a.id === activityId);
+    const activity = displayedActivities.find((a: ActivityItem) => a.id === activityId);
     if (!activity?.data.social) return;
 
-    const updatedActivities = activities.map(a => {
+    const updatedActivities = allActivities.map((a: ActivityItem) => {
       if (a.id === activityId && a.data.social) {
         return {
           ...a,
@@ -367,8 +198,14 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
       return a;
     });
 
-    setActivities(updatedActivities);
+    setAllActivities(updatedActivities);
     toast.success(activity.data.social.isLiked ? 'Unliked' : 'Liked!');
+  };
+
+  const handleLoadMore = () => {
+    setLoadingMore(true);
+    setPage(prevPage => prevPage + 1);
+    setTimeout(() => setLoadingMore(false), 500); // Small delay for visual feedback
   };
 
   const handleShare = (activity: ActivityItem) => {
@@ -392,6 +229,8 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
       case 'purchase':
       case 'sale':
         return ShoppingCart;
+      case 'transfer':
+        return ArrowRight;
       case 'event_attend':
         return Calendar;
       case 'badge_earned':
@@ -401,6 +240,8 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
         return TrendingUp;
       case 'referral':
         return Users;
+      case 'deploy':
+        return Rocket;
       default:
         return Activity;
     }
@@ -412,6 +253,8 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
         return 'from-blue-500 to-blue-600';
       case 'sale':
         return 'from-green-500 to-green-600';
+      case 'transfer':
+        return 'from-indigo-500 to-indigo-600';
       case 'event_attend':
         return 'from-purple-500 to-purple-600';
       case 'badge_earned':
@@ -421,6 +264,8 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
         return 'from-emerald-500 to-emerald-600';
       case 'referral':
         return 'from-pink-500 to-pink-600';
+      case 'deploy':
+        return 'from-orange-500 to-orange-600';
       default:
         return 'from-gray-500 to-gray-600';
     }
@@ -480,6 +325,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
         {[
           { id: 'all', label: 'All Activity', icon: Activity },
           { id: 'purchase', label: 'Trading', icon: ShoppingCart },
+          { id: 'deploy', label: 'Deployments', icon: Rocket },
           { id: 'event', label: 'Events', icon: Calendar },
           { id: 'badge', label: 'Badges', icon: Award },
           { id: 'social', label: 'Social', icon: Users }
@@ -501,7 +347,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
 
       {/* Activity List */}
       <div className="space-y-3">
-        {activities.map((activity) => {
+        {displayedActivities.map((activity) => {
           const Icon = getActivityIcon(activity.type);
           return (
             <Card key={activity.id} className="bg-[#1A1A1A] border-gray-800">
@@ -550,25 +396,53 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(`https://explorer.stacks.co/txid/${activity.data.transaction?.hash}`, '_blank')}
+                              onClick={() => window.open(`https://explorer.hiro.so/txid/${activity.data.transaction?.hash}?chain=testnet`, '_blank')}
+                              title="View on Explorer"
                             >
                               <ExternalLink className="w-3 h-3" />
                             </Button>
                           )}
                         </div>
                       )}
+
+                      {/* Deployment link */}
+                      {activity.type === 'deploy' && activity.data.deployment && (
+                        <div className="text-right flex-shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(`https://explorer.hiro.so/txid/${activity.data.transaction?.hash}?chain=testnet`, '_blank')}
+                            title="View Deployment"
+                            className="text-orange-500 hover:text-orange-400"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Event/Badge Details */}
-                    {activity.data.event && (
-                      <div className="flex items-center gap-3 p-3 bg-[#0A0A0A] rounded-lg mb-3">
+                    {/* Event/Badge Details (skip for deploy type as it has its own card) */}
+                    {activity.data.event && activity.type !== 'deploy' && (
+                      <div
+                        className="flex items-center gap-3 p-3 bg-[#0A0A0A] rounded-lg mb-3 cursor-pointer hover:bg-[#1A1A1A] transition-colors"
+                        onClick={() => {
+                          if (activity.data.event?.contractId) {
+                            navigate(`/app/event/${activity.data.event.contractId}`);
+                          }
+                        }}
+                      >
                         <img
                           src={activity.data.event.image}
                           alt={activity.data.event.name}
                           className="w-12 h-12 rounded-lg object-cover"
                         />
                         <div className="flex-1">
-                          <p className="text-white font-medium text-sm">{activity.data.event.name}</p>
+                          <p className="text-white font-medium text-sm flex items-center gap-2">
+                            {activity.data.event.name}
+                            {activity.data.event.contractId && (
+                              <ExternalLink className="w-3 h-3 text-gray-400" />
+                            )}
+                          </p>
                           <p className="text-gray-400 text-xs">
                             {new Date(activity.data.event.date).toLocaleDateString()}
                           </p>
@@ -579,6 +453,64 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
                             <p className="text-gray-400 text-xs mt-1">{activity.data.ticket.section}</p>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* Deployment Details */}
+                    {activity.data.deployment && (
+                      <div
+                        className="flex items-center gap-3 p-3 bg-[#0A0A0A] rounded-lg mb-3 border border-orange-500/20 cursor-pointer hover:bg-[#1A1A1A] transition-colors"
+                        onClick={() => {
+                          if (activity.data.event?.contractId) {
+                            navigate(`/app/event/${activity.data.event.contractId}`);
+                          }
+                        }}
+                      >
+                        {/* Event Image or Rocket Icon */}
+                        {activity.data.event?.image ? (
+                          <img
+                            src={activity.data.event.image}
+                            alt={activity.data.deployment.contractName}
+                            className="w-12 h-12 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center">
+                            <Rocket className="w-6 h-6 text-white" />
+                          </div>
+                        )}
+
+                        <div className="flex-1">
+                          <p className="text-white font-medium text-sm flex items-center gap-2">
+                            {activity.data.deployment.contractName}
+                            <ExternalLink className="w-3 h-3 text-gray-400" />
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-gray-400 text-xs font-mono">
+                              {activity.data.deployment.contractId?.split('.')[0]?.slice(0, 8)}...
+                            </p>
+                            {activity.data.event?.date && (
+                              <>
+                                <span className="text-gray-600">•</span>
+                                <p className="text-gray-400 text-xs">
+                                  {new Date(activity.data.event.date).toLocaleDateString()}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`https://explorer.hiro.so/txid/${activity.data.transaction?.hash}?chain=testnet`, '_blank');
+                          }}
+                          className="text-orange-500 hover:text-orange-400"
+                          title="View on Explorer"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Button>
                       </div>
                     )}
 
@@ -640,22 +572,77 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
         })}
       </div>
 
-      {/* Load More */}
-      {activities.length >= maxItems && (
-        <div className="text-center">
-          <Button
-            variant="outline"
-            onClick={fetchActivities}
-            className="flex items-center gap-2"
-          >
-            Load More Activities
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+      {/* Pagination Info and Load More */}
+      {!loading && displayedActivities.length > 0 && (
+        <div className="space-y-3">
+          {/* Pagination Info */}
+          <div className="text-center text-sm text-gray-400">
+            Showing {displayedActivities.length} of {
+              filter === 'all'
+                ? allActivities.length
+                : allActivities.filter(activity => {
+                    switch (filter) {
+                      case 'purchase':
+                        return ['purchase', 'sale'].includes(activity.type);
+                      case 'event':
+                        return activity.type === 'event_attend';
+                      case 'badge':
+                        return activity.type === 'badge_earned';
+                      case 'social':
+                        return ['referral', 'social'].includes(activity.type);
+                      case 'deploy':
+                        return activity.type === 'deploy';
+                      default:
+                        return true;
+                    }
+                  }).length
+            } activities
+            {page > 1 && ` (Page ${page})`}
+          </div>
+
+          {/* Load More Button */}
+          {displayedActivities.length < (filter === 'all' ? allActivities.length : allActivities.filter(activity => {
+            switch (filter) {
+              case 'purchase':
+                return ['purchase', 'sale'].includes(activity.type);
+              case 'event':
+                return activity.type === 'event_attend';
+              case 'badge':
+                return activity.type === 'badge_earned';
+              case 'social':
+                return ['referral', 'social'].includes(activity.type);
+              case 'deploy':
+                return activity.type === 'deploy';
+              default:
+                return true;
+            }
+          }).length) && (
+            <div className="text-center">
+              <Button
+                variant="outline"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="flex items-center gap-2"
+              >
+                {loadingMore ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    Load More Activities
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Empty State */}
-      {activities.length === 0 && !loading && (
+      {displayedActivities.length === 0 && !loading && (
         <div className="text-center py-12">
           <div className="w-16 h-16 bg-[#1A1A1A] rounded-full flex items-center justify-center mx-auto mb-4">
             <Activity className="w-8 h-8 text-gray-600" />

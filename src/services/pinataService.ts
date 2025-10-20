@@ -54,8 +54,6 @@ export const uploadImageToPinata = async (file: File): Promise<string> => {
     });
     formData.append('pinataOptions', options);
 
-    console.log('📤 Uploading image to Pinata...');
-
     const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
       method: 'POST',
       headers: {
@@ -72,9 +70,6 @@ export const uploadImageToPinata = async (file: File): Promise<string> => {
     const data: PinataUploadResponse = await response.json();
     const ipfsUrl = `${PINATA_GATEWAY}/${data.IpfsHash}`;
 
-    console.log('✅ Image uploaded to IPFS:', ipfsUrl);
-    console.log('📦 IPFS Hash:', data.IpfsHash);
-
     return ipfsUrl;
   } catch (error) {
     console.error('Error uploading image to Pinata:', error);
@@ -89,7 +84,6 @@ export const uploadMetadataToPinata = async (
   metadata: NFTMetadata
 ): Promise<{ ipfsUrl: string; cid: string }> => {
   try {
-    console.log('📤 Uploading metadata to Pinata...');
 
     const response = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
       method: 'POST',
@@ -121,9 +115,6 @@ export const uploadMetadataToPinata = async (
     const data: PinataUploadResponse = await response.json();
     const ipfsUrl = `${PINATA_GATEWAY}/${data.IpfsHash}`;
     const cid = data.IpfsHash;
-
-    console.log('✅ Metadata uploaded to IPFS:', ipfsUrl);
-    console.log('📦 CID:', cid);
 
     return { ipfsUrl, cid };
   } catch (error) {
@@ -238,7 +229,6 @@ export const testPinataConnection = async (): Promise<boolean> => {
     }
 
     const data = await response.json();
-    console.log('✅ Pinata connection test successful:', data);
     return true;
   } catch (error) {
     console.error('❌ Pinata connection test failed:', error);

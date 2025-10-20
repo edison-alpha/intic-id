@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback, memo } from "react";
 import { Award, Star, TrendingUp, Zap, Crown, CheckCircle2, Lock, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,18 +17,127 @@ interface NFTBadge {
   perks: string[];
 }
 
+// Memoized Badge Card Component
+const BadgeCard = memo(({
+  badge,
+  onClick,
+  onMint,
+  tierColor,
+  tierBorderColor
+}: {
+  badge: NFTBadge;
+  onClick: () => void;
+  onMint: (e: React.MouseEvent) => void;
+  tierColor: string;
+  tierBorderColor: string;
+}) => {
+  return (
+    <div
+      className={`relative p-6 bg-[#0A0A0A] border-2 ${tierBorderColor} rounded-xl hover:scale-[1.02] transition-all cursor-pointer`}
+      onClick={onClick}
+    >
+      {/* Tier Gradient Background */}
+      <div className={`absolute top-0 left-0 right-0 h-24 bg-gradient-to-b ${tierColor} opacity-20 rounded-t-xl`} />
+
+      {/* Badge Content */}
+      <div className="relative">
+        <div className="flex items-start justify-between mb-4">
+          <div className="text-6xl">{badge.image}</div>
+          <CheckCircle2 className="w-6 h-6 text-green-500" />
+        </div>
+
+        <h4 className="text-lg font-bold text-white mb-2">{badge.name}</h4>
+        <p className="text-gray-400 text-sm mb-3">{badge.description}</p>
+
+        {/* NFT ID Badge */}
+        {badge.nftId ? (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 border border-green-500/30 text-green-400 text-xs font-bold rounded-lg mb-3">
+            <CheckCircle2 className="w-3 h-3" />
+            <span>MINTED</span>
+          </div>
+        ) : (
+          <button
+            onClick={onMint}
+            className="w-full py-2 bg-[#FE5C02] hover:bg-[#E54F02] text-white text-sm font-bold rounded-lg transition-colors mb-3"
+          >
+            Mint NFT Badge
+          </button>
+        )}
+
+        {badge.mintDate && (
+          <p className="text-gray-500 text-xs">Unlocked: {badge.mintDate}</p>
+        )}
+      </div>
+    </div>
+  );
+});
+
+BadgeCard.displayName = 'BadgeCard';
+
+// Memoized Locked Badge Card Component
+const LockedBadgeCard = memo(({
+  badge,
+  onClick,
+  tierColor
+}: {
+  badge: NFTBadge;
+  onClick: () => void;
+  tierColor: string;
+}) => {
+  const progressPercentage = useMemo(
+    () => (badge.progress / badge.maxProgress) * 100,
+    [badge.progress, badge.maxProgress]
+  );
+
+  return (
+    <div
+      className="relative p-6 bg-[#0A0A0A] border border-gray-800 rounded-xl opacity-75 hover:opacity-90 transition-all cursor-pointer"
+      onClick={onClick}
+    >
+      {/* Lock Overlay */}
+      <div className="absolute top-4 right-4">
+        <Lock className="w-5 h-5 text-gray-600" />
+      </div>
+
+      <div className="text-5xl mb-4 grayscale opacity-50">{badge.image}</div>
+
+      <h4 className="text-lg font-bold text-gray-300 mb-2">{badge.name}</h4>
+      <p className="text-gray-500 text-sm mb-3">{badge.description}</p>
+
+      {/* Progress Bar */}
+      <div className="mb-2">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-gray-400 text-xs">Progress</span>
+          <span className="text-gray-400 text-xs font-bold">{badge.progress}/{badge.maxProgress}</span>
+        </div>
+        <div className="h-2 bg-black/30 rounded-full overflow-hidden">
+          <div
+            className={`h-full bg-gradient-to-r ${tierColor}`}
+            style={{ width: `${progressPercentage}%` }}
+          />
+        </div>
+      </div>
+
+      <p className="text-gray-600 text-xs">{badge.requirement}</p>
+    </div>
+  );
+});
+
+LockedBadgeCard.displayName = 'LockedBadgeCard';
+
 const ProofOfFandomBadges = () => {
   const [selectedBadge, setSelectedBadge] = useState<NFTBadge | null>(null);
 
-  // Mock user data
-  const userStats = {
+  // Mock user data - Memoized to prevent re-creation on every render
+  const userStats = useMemo(() => ({
     totalEvents: 8,
     totalSpent: 215,
     memberSince: "January 2025",
     nftsMinted: 2
-  };
+  }), []);
 
-  const badges: NFTBadge[] = [
+  // Memoized badges data
+  const badges: NFTBadge[] = useMemo(() => [
     {
       id: "first-event",
       name: "First Experience",
@@ -119,9 +228,10 @@ const ProofOfFandomBadges = () => {
       image: "⚡",
       perks: ["Founder's badge", "30% permanent discount", "Governance voting power x2", "Exclusive founder events"]
     }
-  ];
+  ], []);
 
-  const getTierColor = (tier: string) => {
+  // Memoized helper functions
+  const getTierColor = useCallback((tier: string) => {
     const colors = {
       bronze: "from-orange-600 to-orange-800",
       silver: "from-gray-400 to-gray-600",
@@ -129,9 +239,9 @@ const ProofOfFandomBadges = () => {
       platinum: "from-purple-400 to-purple-600"
     };
     return colors[tier as keyof typeof colors] || colors.bronze;
-  };
+  }, []);
 
-  const getTierBorderColor = (tier: string) => {
+  const getTierBorderColor = useCallback((tier: string) => {
     const colors = {
       bronze: "border-orange-500",
       silver: "border-gray-400",
@@ -139,9 +249,9 @@ const ProofOfFandomBadges = () => {
       platinum: "border-purple-500"
     };
     return colors[tier as keyof typeof colors] || colors.bronze;
-  };
+  }, []);
 
-  const handleMintBadge = (badge: NFTBadge) => {
+  const handleMintBadge = useCallback((badge: NFTBadge) => {
     if (!badge.unlocked) {
       toast.error("Badge not unlocked yet!", {
         description: `Complete requirement: ${badge.requirement}`
@@ -166,10 +276,11 @@ const ProofOfFandomBadges = () => {
         description: "Your Proof of Fandom NFT is now in your wallet"
       });
     }, 2000);
-  };
+  }, []);
 
-  const unlockedBadges = badges.filter(b => b.unlocked);
-  const lockedBadges = badges.filter(b => !b.unlocked);
+  // Memoize filtered badges to prevent recalculation on every render
+  const unlockedBadges = useMemo(() => badges.filter(b => b.unlocked), [badges]);
+  const lockedBadges = useMemo(() => badges.filter(b => !b.unlocked), [badges]);
 
   return (
     <div className="space-y-8">
@@ -216,47 +327,17 @@ const ProofOfFandomBadges = () => {
         <h3 className="text-xl font-bold text-white mb-4">Unlocked Badges ({unlockedBadges.length})</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {unlockedBadges.map((badge) => (
-            <div
+            <BadgeCard
               key={badge.id}
-              className={`relative p-6 bg-[#0A0A0A] border-2 ${getTierBorderColor(badge.tier)} rounded-xl hover:scale-[1.02] transition-all cursor-pointer`}
+              badge={badge}
               onClick={() => setSelectedBadge(badge)}
-            >
-              {/* Tier Gradient Background */}
-              <div className={`absolute top-0 left-0 right-0 h-24 bg-gradient-to-b ${getTierColor(badge.tier)} opacity-20 rounded-t-xl`} />
-              
-              {/* Badge Content */}
-              <div className="relative">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="text-6xl">{badge.image}</div>
-                  <CheckCircle2 className="w-6 h-6 text-green-500" />
-                </div>
-
-                <h4 className="text-lg font-bold text-white mb-2">{badge.name}</h4>
-                <p className="text-gray-400 text-sm mb-3">{badge.description}</p>
-
-                {/* NFT ID Badge */}
-                {badge.nftId ? (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 border border-green-500/30 text-green-400 text-xs font-bold rounded-lg mb-3">
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>MINTED</span>
-                  </div>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMintBadge(badge);
-                    }}
-                    className="w-full py-2 bg-[#FE5C02] hover:bg-[#E54F02] text-white text-sm font-bold rounded-lg transition-colors mb-3"
-                  >
-                    Mint NFT Badge
-                  </button>
-                )}
-
-                {badge.mintDate && (
-                  <p className="text-gray-500 text-xs">Unlocked: {badge.mintDate}</p>
-                )}
-              </div>
-            </div>
+              onMint={(e) => {
+                e.stopPropagation();
+                handleMintBadge(badge);
+              }}
+              tierColor={getTierColor(badge.tier)}
+              tierBorderColor={getTierBorderColor(badge.tier)}
+            />
           ))}
         </div>
       </div>
@@ -265,43 +346,14 @@ const ProofOfFandomBadges = () => {
       <div>
         <h3 className="text-xl font-bold text-white mb-4">Locked Badges ({lockedBadges.length})</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {lockedBadges.map((badge) => {
-            const progressPercentage = (badge.progress / badge.maxProgress) * 100;
-
-            return (
-              <div
-                key={badge.id}
-                className="relative p-6 bg-[#0A0A0A] border border-gray-800 rounded-xl opacity-75 hover:opacity-90 transition-all cursor-pointer"
-                onClick={() => setSelectedBadge(badge)}
-              >
-                {/* Lock Overlay */}
-                <div className="absolute top-4 right-4">
-                  <Lock className="w-5 h-5 text-gray-600" />
-                </div>
-
-                <div className="text-5xl mb-4 grayscale opacity-50">{badge.image}</div>
-
-                <h4 className="text-lg font-bold text-gray-300 mb-2">{badge.name}</h4>
-                <p className="text-gray-500 text-sm mb-3">{badge.description}</p>
-
-                {/* Progress Bar */}
-                <div className="mb-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-gray-400 text-xs">Progress</span>
-                    <span className="text-gray-400 text-xs font-bold">{badge.progress}/{badge.maxProgress}</span>
-                  </div>
-                  <div className="h-2 bg-black/30 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full bg-gradient-to-r ${getTierColor(badge.tier)}`}
-                      style={{ width: `${progressPercentage}%` }}
-                    />
-                  </div>
-                </div>
-
-                <p className="text-gray-600 text-xs">{badge.requirement}</p>
-              </div>
-            );
-          })}
+          {lockedBadges.map((badge) => (
+            <LockedBadgeCard
+              key={badge.id}
+              badge={badge}
+              onClick={() => setSelectedBadge(badge)}
+              tierColor={getTierColor(badge.tier)}
+            />
+          ))}
         </div>
       </div>
 

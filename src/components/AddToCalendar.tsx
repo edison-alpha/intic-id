@@ -1,6 +1,13 @@
 import React, { useState } from "react";
-import { Calendar, ChevronDown, CheckCircle2 } from "lucide-react";
-import { addToGoogleCalendar, addToAppleCalendar, addToOutlookCalendar } from "@/lib/calendar";
+import { Calendar, ChevronDown, CheckCircle2, Download } from "lucide-react";
+import {
+  createCalendarEventFromTicket,
+  openCalendarPicker,
+  downloadICS,
+  addToGoogleCalendar,
+  addToOutlookCalendar
+} from "@/services/calendarService";
+import { toast } from "sonner";
 
 interface AddToCalendarProps {
   eventName: string;
@@ -35,19 +42,35 @@ const AddToCalendar: React.FC<AddToCalendarProps> = ({
     ticketId
   };
 
-  const handleAddToCalendar = (provider: "google" | "apple" | "outlook") => {
+  const handleAddToCalendar = (provider: "google" | "outlook" | "download") => {
+    // Create calendar event object
+    const calendarEvent = createCalendarEventFromTicket({
+      id: ticketId,
+      eventName,
+      eventDate,
+      eventTime,
+      location,
+      ticketNumber: ticketId || '#TKT-000000',
+      category: 'General'
+    });
+
     switch (provider) {
       case "google":
-        addToGoogleCalendar(eventData);
-        break;
-      case "apple":
-        addToAppleCalendar(eventData);
+        const googleUrl = addToGoogleCalendar(calendarEvent);
+        window.open(googleUrl, '_blank');
+        toast.success('Opening Google Calendar...');
         break;
       case "outlook":
-        addToOutlookCalendar(eventData);
+        const outlookUrl = addToOutlookCalendar(calendarEvent);
+        window.open(outlookUrl, '_blank');
+        toast.success('Opening Outlook Calendar...');
+        break;
+      case "download":
+        downloadICS(calendarEvent);
+        toast.success('Calendar file downloaded!');
         break;
     }
-    
+
     setShowSuccess(true);
     setTimeout(() => {
       setShowSuccess(false);
@@ -63,16 +86,16 @@ const AddToCalendar: React.FC<AddToCalendarProps> = ({
       color: "from-blue-500 to-blue-600"
     },
     {
-      id: "apple",
-      name: "Apple Calendar",
-      icon: "🍎",
-      color: "from-gray-600 to-gray-700"
-    },
-    {
       id: "outlook",
       name: "Outlook Calendar",
       icon: "📧",
       color: "from-blue-600 to-indigo-600"
+    },
+    {
+      id: "download",
+      name: "Download .ics File",
+      icon: "💾",
+      color: "from-[#FE5C02] to-orange-600"
     }
   ];
 

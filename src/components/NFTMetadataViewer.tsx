@@ -18,6 +18,7 @@ import {
   Activity
 } from 'lucide-react';
 import { toast } from 'sonner';
+import bannerImg from '../assets/banner (1).png';
 
 interface NFTMetadata {
   tokenId: string;
@@ -119,7 +120,7 @@ export const NFTMetadataViewer: React.FC<NFTMetadataViewerProps> = ({
         contractAddress,
         name: `Pulse Robot Event Ticket #${tokenId}`,
         description: 'Exclusive NFT ticket for Summer Music Festival 2025. This ticket grants access to the event and includes special perks for holders.',
-        image: '/src/img/banner (1).png',
+        image: bannerImg,
         animationUrl: 'https://pulse-robot.com/animations/ticket-reveal.mp4',
         externalUrl: 'https://pulse-robot.com/tickets/' + tokenId,
         attributes: [

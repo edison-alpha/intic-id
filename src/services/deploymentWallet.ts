@@ -50,8 +50,6 @@ export const getDeploymentWallet = (): DeploymentWallet => {
     throw new Error('Deployment wallet configuration error: address mismatch');
   }
   
-  console.log('✅ Deployment wallet loaded:', address);
-  
   return { privateKey, address };
 };
 

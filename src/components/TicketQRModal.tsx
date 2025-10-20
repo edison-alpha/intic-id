@@ -1,6 +1,7 @@
 import React from "react";
 import { X, Download, Share2, CheckCircle2, Shield, Calendar } from "lucide-react";
-import { QRCodeCanvas } from "qrcode.react";
+// QR Code functionality disabled - qrcode.react not available
+// import { QRCodeCanvas } from "qrcode.react";
 import { addToGoogleCalendar, addToAppleCalendar, addToOutlookCalendar } from "@/lib/calendar";
 
 interface TicketQRModalProps {
@@ -48,7 +49,6 @@ const TicketQRModal: React.FC<TicketQRModalProps> = ({ isOpen, onClose, ticket }
           url: window.location.href
         });
       } catch (error) {
-        console.log('Error sharing:', error);
       }
     }
   };
@@ -88,15 +88,14 @@ const TicketQRModal: React.FC<TicketQRModalProps> = ({ isOpen, onClose, ticket }
         {/* Ticket Card */}
         <div className="bg-gradient-to-br from-[#FE5C02] to-purple-600 rounded-xl p-[1px] mb-6">
           <div className="bg-[#0A0A0A] rounded-xl p-6">
-            {/* QR Code */}
+            {/* QR Code - DISABLED */}
             <div className="bg-white p-4 rounded-lg mb-4 flex items-center justify-center">
-              <QRCodeCanvas
-                id="ticket-qr-canvas"
-                value={ticketData}
-                size={200}
-                level="H"
-                includeMargin={true}
-              />
+              <div className="w-[200px] h-[200px] bg-gray-200 rounded flex items-center justify-center">
+                <div className="text-center text-gray-500">
+                  <Shield className="w-12 h-12 mx-auto mb-2" />
+                  <p className="text-sm">QR Code Disabled</p>
+                </div>
+              </div>
             </div>
 
             {/* Ticket Info */}

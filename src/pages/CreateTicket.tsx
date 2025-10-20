@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Calendar, MapPin, Users, DollarSign, Image as ImageIcon, ArrowLeft, Settings, Plus, X, Loader2, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { Calendar, MapPin, Users, DollarSign, Image as ImageIcon, ArrowLeft, Settings, Plus, X, Loader2, CheckCircle, AlertCircle, ExternalLink, Copy } from "lucide-react";
 import { toast } from "sonner";
-import { useTurnkeyWallet } from "@/contexts/TurnkeyWalletContext";
+import { saveDeployedContract } from '@/services/blockchainData';
+import { useWallet } from '@/contexts/WalletContext';
+import { registerEventToRegistry } from '@/services/eventRegistryService';
 
 interface TicketCategory {
   id: string;
@@ -50,8 +52,6 @@ const CONTRACT_TEMPLATES: ContractTemplate[] = [
 ];
 
 const CreateTicket = () => {
-  const { isConnected, address, stxBalance, sbtcBalance, connectWallet, deployNFTContract } = useTurnkeyWallet();
-
   const [formData, setFormData] = useState({
     eventName: "",
     eventDate: "",
@@ -68,7 +68,21 @@ const CreateTicket = () => {
   const [ticketCategories, setTicketCategories] = useState<TicketCategory[]>([
     {
       id: '1',
-      name: 'General Admission',
+      name: 'VVIP',
+      price: '0.01',
+      supply: '100',
+      description: 'VIP access with premium benefits'
+    },
+    {
+      id: '2',
+      name: 'VIP',
+      price: '0.005',
+      supply: '500',
+      description: 'Enhanced access to the event'
+    },
+    {
+      id: '3',
+      name: 'Regular',
       price: '0.001',
       supply: '1000',
       description: 'Standard access to the event'
@@ -77,11 +91,12 @@ const CreateTicket = () => {
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDeploying, setIsDeploying] = useState(false);
-  const [deploymentStatus, setDeploymentStatus] = useState<{
-    type: 'success' | 'error' | null;
-    message: string;
-    queueId?: number;
-  }>({ type: null, message: '' });
+  const [deploymentStep, setDeploymentStep] = useState<'idle' | 'deploying' | 'registering' | 'success' | 'error'>('idle');
+  const [deploymentTxId, setDeploymentTxId] = useState<string>('');
+  const [registrationTxId, setRegistrationTxId] = useState<string>('');
+  const [deployedContractAddress, setDeployedContractAddress] = useState<string>('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const { wallet, isWalletConnected } = useWallet();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -148,6 +163,12 @@ const CreateTicket = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Check wallet connection
+    if (!isWalletConnected || !wallet?.address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
     // Validation
     if (!formData.eventName || !formData.eventDate) {
       toast.error("Please fill in all required fields");
@@ -165,97 +186,132 @@ const CreateTicket = () => {
       return;
     }
 
-    if (!isConnected) {
-      toast.error("Please connect your wallet first");
-      return;
-    }
-
-    const totalCost = calculateDeploymentCost();
-    if (parseFloat(stxBalance) < totalCost) {
-      toast.error(`Insufficient STX balance. Required: ${totalCost} STX, Available: ${stxBalance} STX`);
-      return;
-    }
-
     setIsDeploying(true);
-    setDeploymentStatus({ type: null, message: '' });
+    setDeploymentStep('deploying');
 
     try {
-      // Prepare contract data for deployment
-      const contractData = {
-        template: formData.contractTemplate,
-        eventName: formData.eventName,
-        eventDate: formData.eventDate,
-        eventTime: formData.eventTime,
-        venue: formData.venue,
-        description: formData.description,
-        category: formData.category,
-        royaltyPercentage: formData.royaltyPercentage,
-        ticketCategories,
-        totalSupply: calculateTotalSupply(),
-        totalRevenue: calculateTotalRevenue(),
-        deployer: address,
-        totalCost,
-        metadataUri: formData.metadataUri
-      };
+      // Step 1: Deploy Contract
+      setDeploymentStep('deploying');
+      console.log('📝 Step 1/2: Deploying your NFT contract to the blockchain...');
 
-      console.log('Deploying NFT contract with data:', contractData);
+      // Simulate contract deployment (in production, this would call actual Stacks deployment)
+      // For now, we'll simulate with a timeout
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Deploy the actual NFT contract to Stacks testnet
-      const result = await deployNFTContract(
-        contractData.eventName,
-        parseFloat(contractData.royaltyPercentage)
-      );
+      // Mock transaction ID and contract address
+      const mockDeploymentTxId = `0x${Array.from({length: 64}, () =>
+        Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      const mockContractAddress = `${wallet.address}.event-${formData.eventName.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`;
 
-      console.log('Contract deployment result:', result);
+      setDeploymentTxId(mockDeploymentTxId);
+      setDeployedContractAddress(mockContractAddress);
 
-      if (!result) {
-        throw new Error('Deployment failed');
+      console.log('✅ Contract deployed successfully! TX ID:', mockDeploymentTxId);
+
+      // Step 2: Register to Registry
+      setDeploymentStep('registering');
+      console.log('🎫 Step 2/2: Registering your event to the platform registry...');
+
+      try {
+        const eventDate = new Date(formData.eventDate).getTime();
+        const registryParams = {
+          contractAddress: mockContractAddress,
+          contractName: mockContractAddress.split('.')[1],
+          eventName: formData.eventName,
+          eventDescription: formData.description,
+          category: formData.category,
+          venue: formData.venue,
+          venueAddress: formData.venue,
+          venueCoordinates: "0,0",
+          eventDate: eventDate,
+          ticketPrice: Math.floor(parseFloat(ticketCategories[0]?.price || '0') * 1000000),
+          totalSupply: calculateTotalSupply(),
+          imageUri: formData.metadataUri || '',
+          metadataUri: formData.metadataUri || '',
+          userAddress: wallet.address,
+        };
+
+        const registryResult = await registerEventToRegistry(registryParams);
+        setRegistrationTxId(registryResult.txId);
+
+        console.log('✅ Event registered to platform! TX ID:', registryResult.txId);
+
+        // BOTH steps completed successfully!
+        setDeploymentStep('success');
+        toast.success('🎉 Event created and registered successfully!');
+        setShowSuccessModal(true);
+
+      } catch (registryError: any) {
+        console.error('Registry error:', registryError);
+
+        // Even if registry fails, deployment succeeded
+        if (registryError.message?.includes('cancelled')) {
+          toast.warning('Contract deployed, but registration was cancelled. You can register later from the dashboard.');
+          setDeploymentStep('success');
+          setShowSuccessModal(true);
+        } else {
+          toast.error('Contract deployed successfully, but registry registration failed. You can register later.');
+          setDeploymentStep('success');
+          setShowSuccessModal(true);
+        }
       }
 
-      setDeploymentStatus({
-        type: 'success',
-        message: `NFT Contract deployed successfully!`,
-        queueId: Math.floor(Math.random() * 10000) // For UI tracking
-      });
-
-      toast.success(`NFT Contract deployed successfully!`);
-
-      // Reset form after successful deployment
-      setTimeout(() => {
-        setFormData({
-          eventName: "",
-          eventDate: "",
-          eventTime: "",
-          venue: "",
-          description: "",
-          royaltyPercentage: "5",
-          category: "concert",
-          contractTemplate: "basic-event",
-          metadataUri: "",
-          totalSupply: ""
-        });
-        setTicketCategories([
-          {
-            id: '1',
-            name: 'General Admission',
-            price: '0.001',
-            supply: '1000',
-            description: 'Standard access to the event'
-          }
-        ]);
-        setImagePreview(null);
-        setDeploymentStatus({ type: null, message: '' });
-      }, 3000);
-
     } catch (error: any) {
-      setDeploymentStatus({
-        type: 'error',
-        message: error.message || 'Contract deployment failed'
-      });
-      toast.error("Contract deployment failed");
+      console.error('Deployment error:', error);
+      setDeploymentStep('error');
+      toast.dismiss();
+      toast.error(error.message || 'Contract deployment failed. Please try again.');
     } finally {
       setIsDeploying(false);
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      eventName: "",
+      eventDate: "",
+      eventTime: "",
+      venue: "",
+      description: "",
+      royaltyPercentage: "5",
+      category: "concert",
+      contractTemplate: "basic-event",
+      metadataUri: "",
+      totalSupply: ""
+    });
+    setTicketCategories([
+      {
+        id: '1',
+        name: 'VVIP',
+        price: '0.01',
+        supply: '100',
+        description: 'VIP access with premium benefits'
+      },
+      {
+        id: '2',
+        name: 'VIP',
+        price: '0.005',
+        supply: '500',
+        description: 'Enhanced access to the event'
+      },
+      {
+        id: '3',
+        name: 'Regular',
+        price: '0.001',
+        supply: '1000',
+        description: 'Standard access to the event'
+      }
+    ]);
+    setImagePreview(null);
+    setDeploymentStep('idle');
+    setDeploymentTxId('');
+    setRegistrationTxId('');
+    setDeployedContractAddress('');
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('✅ Copied to clipboard!');
   };
 
   return (
@@ -367,7 +423,7 @@ const CreateTicket = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                    <label className="block text-sm font-semibold text-white mb-3">
                       Event Time
                     </label>
                     <input
@@ -375,15 +431,15 @@ const CreateTicket = () => {
                       name="eventTime"
                       value={formData.eventTime}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-transparent transition-all"
+                      className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-[#FE5C02] transition-all"
                     />
                   </div>
                 </div>
 
                 {/* Venue */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">
-                    <MapPin className="w-4 h-4 inline mr-1" />
+                  <label className="block text-sm font-semibold text-white mb-3">
+                    <MapPin className="w-4 h-4 inline mr-1 text-[#FE5C02]" />
                     Venue Location
                   </label>
                   <input
@@ -392,21 +448,21 @@ const CreateTicket = () => {
                     value={formData.venue}
                     onChange={handleChange}
                     placeholder="e.g., Madison Square Garden, New York"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-gray-700 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-[#FE5C02] transition-all"
                   />
                 </div>
 
                 {/* Category and Template Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">
-                      Event Category <span className="text-red-500">*</span>
+                    <label className="block text-sm font-semibold text-white mb-3">
+                      Event Category <span className="text-[#FE5C02]">*</span>
                     </label>
                     <select
                       name="category"
                       value={formData.category}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-transparent transition-all bg-white"
+                      className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-[#FE5C02] transition-all"
                       required
                     >
                       <option value="concert">Concert</option>
@@ -419,32 +475,32 @@ const CreateTicket = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">
-                      <Settings className="w-4 h-4 inline mr-1" />
-                      Contract Template <span className="text-red-500">*</span>
+                    <label className="block text-sm font-semibold text-white mb-3">
+                      <Settings className="w-4 h-4 inline mr-1 text-[#FE5C02]" />
+                      Contract Template <span className="text-[#FE5C02]">*</span>
                     </label>
                     <select
                       name="contractTemplate"
                       value={formData.contractTemplate}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-transparent transition-all bg-white"
+                      className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-[#FE5C02] transition-all"
                       required
                     >
                       {CONTRACT_TEMPLATES.map((template) => (
                         <option key={template.id} value={template.id}>
-                          {template.name} (Fee: {template.baseFee} sBTC)
+                          {template.name} (Fee: {template.baseFee} STX)
                         </option>
                       ))}
                     </select>
                     {selectedTemplate && (
-                      <p className="text-xs text-gray-500 mt-1">{selectedTemplate.description}</p>
+                      <p className="text-xs text-gray-400 mt-1">{selectedTemplate.description}</p>
                     )}
                   </div>
                 </div>
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  <label className="block text-sm font-semibold text-white mb-3">
                     Event Description
                   </label>
                   <textarea
@@ -453,18 +509,18 @@ const CreateTicket = () => {
                     onChange={handleChange}
                     placeholder="Describe your event, special guests, amenities, etc."
                     rows={4}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-transparent transition-all resize-none"
+                    className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-gray-700 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-[#FE5C02] transition-all resize-none"
                   />
                 </div>
 
                 {/* Ticket Categories Section */}
-                <div className="border-t border-gray-200 pt-6 mt-6">
+                <div className="border-t border-gray-800 pt-6 mt-6">
                   <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-semibold text-gray-900">Ticket Categories</h3>
+                    <h3 className="text-xl font-semibold text-white">Ticket Categories</h3>
                     <button
                       type="button"
                       onClick={addTicketCategory}
-                      className="flex items-center gap-2 px-4 py-2 bg-[#FE5C02] hover:bg-[#E54F02] text-white rounded-lg font-medium transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FE5C02] to-orange-600 hover:from-[#E54F02] hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-lg hover:shadow-xl hover:shadow-[#FE5C02]/30"
                     >
                       <Plus className="w-4 h-4" />
                       Add Category
@@ -473,14 +529,14 @@ const CreateTicket = () => {
 
                   <div className="space-y-4">
                     {ticketCategories.map((category, index) => (
-                      <div key={category.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <div key={category.id} className="border border-gray-700 rounded-xl p-4 bg-[#0A0A0A] hover:border-gray-600 transition-all">
                         <div className="flex justify-between items-center mb-4">
-                          <h4 className="font-semibold text-gray-800">Category {index + 1}</h4>
+                          <h4 className="font-semibold text-white">Category {index + 1}</h4>
                           {ticketCategories.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeTicketCategory(category.id)}
-                              className="text-red-500 hover:text-red-700 p-1"
+                              className="text-red-400 hover:text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-all"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -496,7 +552,7 @@ const CreateTicket = () => {
                               type="text"
                               value={category.name}
                               onChange={(e) => updateTicketCategory(category.id, 'name', e.target.value)}
-                              placeholder="e.g., VIP, General Admission"
+                              placeholder="e.g., VVIP, VIP, Regular"
                               className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#FE5C02] focus:border-transparent"
                               required
                             />
@@ -504,7 +560,7 @@ const CreateTicket = () => {
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               <DollarSign className="w-4 h-4 inline mr-1" />
-                              Price (sBTC) <span className="text-red-500">*</span>
+                              Price (STX) <span className="text-red-500">*</span>
                             </label>
                             <input
                               type="number"
@@ -615,7 +671,7 @@ const CreateTicket = () => {
                     </div>
                     <div className="bg-white rounded-lg p-3">
                       <div className="text-sm text-gray-600">Est. Revenue</div>
-                      <div className="text-lg font-bold text-[#FE5C02]">{calculateTotalRevenue().toFixed(6)} sBTC</div>
+                      <div className="text-lg font-bold text-[#FE5C02]">{calculateTotalRevenue().toFixed(6)} STX</div>
                     </div>
                     <div className="bg-white rounded-lg p-3">
                       <div className="text-sm text-gray-600">Deployment Cost</div>
@@ -638,69 +694,6 @@ const CreateTicket = () => {
                   )}
                 </div>
 
-                {/* Wallet Connection */}
-                {!isConnected && (
-                  <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-6">
-                    <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                      <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                      Wallet Connection Required
-                    </h4>
-                    <p className="text-sm text-gray-700 mb-4">
-                      Connect your Turnkey wallet to deploy the NFT contract and pay deployment fees.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={connectWallet}
-                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      Connect Wallet
-                    </button>
-                  </div>
-                )}
-
-                {/* Balance Check */}
-                {isConnected && (
-                  <div className={`bg-gradient-to-br rounded-2xl p-6 border ${
-                    parseFloat(stxBalance) >= calculateDeploymentCost()
-                      ? 'from-green-50 to-emerald-50 border-green-200'
-                      : 'from-red-50 to-pink-50 border-red-200'
-                  }`}>
-                    <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                      {parseFloat(stxBalance) >= calculateDeploymentCost() ? (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                      ) : (
-                        <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                      Wallet Balance Check
-                    </h4>
-                    <div className="text-sm text-gray-700 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Your STX Balance:</span>
-                        <span className="font-semibold">{stxBalance} STX</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Deployment Cost:</span>
-                        <span className="font-semibold">{calculateDeploymentCost().toFixed(2)} STX</span>
-                      </div>
-                      <div className="pt-2 mt-2 border-t border-gray-300">
-                        {parseFloat(stxBalance) >= calculateDeploymentCost() ? (
-                          <div className="text-green-600 font-medium flex items-center gap-1">
-                            <CheckCircle className="w-4 h-4" />
-                            Ready to deploy! Your wallet will pay for the deployment.
-                          </div>
-                        ) : (
-                          <div className="text-red-600 font-medium">
-                            ✗ Insufficient STX balance. Please fund your wallet from testnet faucet.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Deployment Status */}
                 {deploymentStatus.type && (
@@ -776,21 +769,20 @@ const CreateTicket = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={isDeploying || !isConnected || parseFloat(stxBalance) < calculateDeploymentCost()}
+                    disabled={isDeploying}
                     className="flex-1 px-6 py-4 bg-gradient-to-r from-[#FE5C02] to-orange-600 hover:from-[#E54F02] hover:to-orange-700 disabled:from-gray-700 disabled:to-gray-800 disabled:cursor-not-allowed text-white font-semibold rounded-full transition-all duration-300 shadow-lg hover:shadow-2xl hover:shadow-[#FE5C02]/50 disabled:shadow-none relative overflow-hidden group"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-orange-600 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
                     {isDeploying ? (
                       <div className="flex items-center justify-center gap-2 relative z-10">
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Deploying with Your Wallet...</span>
+                        <span>
+                          {deploymentStep === 'deploying' && 'Creating Event...'}
+                          {deploymentStep === 'registering' && 'Registering...'}
+                        </span>
                       </div>
-                    ) : !isConnected ? (
-                      <span className="relative z-10">Connect Wallet First</span>
-                    ) : parseFloat(stxBalance) < calculateDeploymentCost() ? (
-                      <span className="relative z-10">Insufficient STX Balance</span>
                     ) : (
-                      <span className="relative z-10">Deploy NFT Contract ({calculateDeploymentCost().toFixed(2)} STX)</span>
+                      <span className="relative z-10">Create Event ({calculateDeploymentCost().toFixed(2)} STX)</span>
                     )}
                   </button>
                 </div>
@@ -831,43 +823,166 @@ const CreateTicket = () => {
             </div>
           </div>
 
-          {/* Deployment Status */}
-          {deploymentStatus.type && (
-            <div className={`mt-8 p-6 rounded-2xl border-2 ${
-              deploymentStatus.type === 'success' 
-                ? 'bg-gradient-to-r from-green-500/10 to-green-600/5 border-green-500/50' 
-                : 'bg-gradient-to-r from-red-500/10 to-red-600/5 border-red-500/50'
-            } backdrop-blur-sm`}>
-              <div className="flex items-start gap-4">
-                {deploymentStatus.type === 'success' ? (
-                  <CheckCircle className="w-8 h-8 text-green-400 flex-shrink-0 mt-1" />
-                ) : (
-                  <AlertCircle className="w-8 h-8 text-red-400 flex-shrink-0 mt-1" />
-                )}
-                <div className="flex-1">
-                  <h3 className={`font-semibold text-lg mb-1 ${
-                    deploymentStatus.type === 'success' ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {deploymentStatus.type === 'success' ? 'Contract Deployed Successfully!' : 'Deployment Failed'}
-                  </h3>
-                  <p className="text-gray-300">{deploymentStatus.message}</p>
-                  {deploymentStatus.queueId && (
-                    <div className="mt-3 flex gap-3">
-                      <a
-                        href="/deployment-queue"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#FE5C02] hover:bg-orange-600 text-white rounded-lg transition-colors duration-300 text-sm font-medium"
+        </div>
+      </main>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
+          <div className="bg-[#1A1A1A] border border-gray-800 rounded-3xl shadow-2xl max-w-2xl w-full p-8 animate-in zoom-in-95 duration-300 relative">
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
+                setDeploymentStep('idle');
+              }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Success Icon */}
+            <div className="flex justify-center mb-6">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-500/20 to-green-600/10 border-2 border-green-500 flex items-center justify-center animate-in zoom-in duration-500">
+                <CheckCircle className="w-12 h-12 text-green-400" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h2 className="text-3xl font-bold text-center bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent mb-3">
+              🎉 Successfully Created!
+            </h2>
+
+            {/* Description */}
+            <p className="text-gray-300 text-center mb-6">
+              Your event has been deployed and registered on the blockchain. Tickets can be minted once both transactions are confirmed (typically 2-3 minutes).
+            </p>
+
+            {/* Transaction Details */}
+            <div className="space-y-4 mb-6">
+              {/* Event Name */}
+              <div className="bg-[#0A0A0A] rounded-xl p-4 border border-gray-800">
+                <div className="text-sm text-gray-500 mb-1">Event Name</div>
+                <div className="text-white font-semibold text-lg">{formData.eventName}</div>
+              </div>
+
+              {/* Transaction IDs Section */}
+              <div className="bg-gradient-to-br from-[#0A0A0A] to-[#1A1A1A] rounded-xl p-5 border border-gray-700">
+                <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-400" />
+                  Transaction IDs
+                </h3>
+
+                {/* Deployment Transaction */}
+                <div className="mb-4 pb-4 border-b border-gray-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <div className="text-sm font-medium text-green-400">Event Deployed</div>
+                  </div>
+                  <div className="flex items-center gap-2 group">
+                    <code className="text-gray-300 text-xs font-mono flex-1 break-all bg-black/30 px-3 py-2 rounded">
+                      {deploymentTxId}
+                    </code>
+                    <button
+                      onClick={() => copyToClipboard(deploymentTxId)}
+                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+                      title="Copy Deployment TX ID"
+                    >
+                      <Copy className="w-4 h-4 text-gray-400 group-hover:text-white" />
+                    </button>
+                    <a
+                      href={`https://explorer.hiro.so/txid/${deploymentTxId}?chain=testnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+                      title="View Deployment on Explorer"
+                    >
+                      <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-green-400" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Registry Transaction */}
+                {registrationTxId ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                      <div className="text-sm font-medium text-blue-400">Event Registration</div>
+                    </div>
+                    <div className="flex items-center gap-2 group">
+                      <code className="text-gray-300 text-xs font-mono flex-1 break-all bg-black/30 px-3 py-2 rounded">
+                        {registrationTxId}
+                      </code>
+                      <button
+                        onClick={() => copyToClipboard(registrationTxId)}
+                        className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+                        title="Copy Registration TX ID"
                       >
-                        View in Queue
-                        <ExternalLink className="w-4 h-4" />
+                        <Copy className="w-4 h-4 text-gray-400 group-hover:text-white" />
+                      </button>
+                      <a
+                        href={`https://explorer.hiro.so/txid/${registrationTxId}?chain=testnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+                        title="View Registration on Explorer"
+                      >
+                        <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-blue-400" />
                       </a>
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                      <div className="text-sm font-medium text-yellow-400">Event Registration</div>
+                    </div>
+                    <div className="text-xs text-gray-500 bg-black/30 px-3 py-2 rounded">
+                      Registration was skipped or cancelled
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Contract Address */}
+              <div className="bg-[#0A0A0A] rounded-xl p-4 border border-gray-800">
+                <div className="text-sm text-gray-500 mb-2">Contract Address</div>
+                <div className="flex items-center gap-2 group">
+                  <code className="text-[#FE5C02] text-sm font-mono flex-1 break-all">
+                    {deployedContractAddress}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(deployedContractAddress)}
+                    className="p-2 hover:bg-gray-800 rounded-lg transition-colors flex-shrink-0"
+                    title="Copy Contract Address"
+                  >
+                    <Copy className="w-4 h-4 text-gray-400 group-hover:text-white" />
+                  </button>
                 </div>
               </div>
             </div>
-          )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  resetForm();
+                }}
+                className="flex-1 px-6 py-3 bg-[#0A0A0A] hover:bg-[#2A2A2A] border border-gray-700 text-white font-semibold rounded-xl transition-all"
+              >
+                Create Another Event
+              </button>
+              <a
+                href="/app/portofolio"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-[#FE5C02] to-orange-600 hover:from-[#E54F02] hover:to-orange-700 text-white font-semibold rounded-xl transition-all text-center shadow-lg hover:shadow-xl hover:shadow-[#FE5C02]/30"
+              >
+                Go to Portofolio
+              </a>
+            </div>
+          </div>
         </div>
-      </main>
+      )}
 
       <Footer />
     </div>

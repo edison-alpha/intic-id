@@ -25,8 +25,7 @@ export interface VenueDetails {
   lon: string;
 }
 
-const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
-const USER_AGENT = 'PulseRobotTicketing/1.0';
+const NOMINATIM_BASE_URL = '/api/nominatim';
 
 /**
  * Search for venues using OpenStreetMap Nominatim
@@ -45,11 +44,7 @@ export const searchVenues = async (query: string): Promise<VenueLocation[]> => {
       'accept-language': 'en',
     });
 
-    const response = await fetch(`${NOMINATIM_BASE_URL}/search?${params}`, {
-      headers: {
-        'User-Agent': USER_AGENT,
-      },
-    });
+    const response = await fetch(`${NOMINATIM_BASE_URL}/search?${params}`);
 
     if (!response.ok) {
       throw new Error(`Nominatim API error: ${response.statusText}`);
@@ -86,11 +81,7 @@ export const getVenueDetails = async (lat: string, lon: string): Promise<VenueDe
       'accept-language': 'en',
     });
 
-    const response = await fetch(`${NOMINATIM_BASE_URL}/reverse?${params}`, {
-      headers: {
-        'User-Agent': USER_AGENT,
-      },
-    });
+    const response = await fetch(`${NOMINATIM_BASE_URL}/reverse?${params}`);
 
     if (!response.ok) {
       throw new Error(`Nominatim API error: ${response.statusText}`);
@@ -126,11 +117,7 @@ export const geocodeAddress = async (address: string): Promise<{ lat: string; lo
       limit: '1',
     });
 
-    const response = await fetch(`${NOMINATIM_BASE_URL}/search?${params}`, {
-      headers: {
-        'User-Agent': USER_AGENT,
-      },
-    });
+    const response = await fetch(`${NOMINATIM_BASE_URL}/search?${params}`);
 
     if (!response.ok) {
       throw new Error(`Nominatim API error: ${response.statusText}`);

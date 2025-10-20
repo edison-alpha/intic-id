@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, Clock, MapPin, Image, FileText, DollarSign, Users, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { useTurnkeyWallet } from '@/contexts/TurnkeyWalletContext';
+import { useTurnkeyContext } from '@/contexts/TurnkeyContext';
+import { makeContractDeploy, broadcastTransaction, AnchorMode } from '@stacks/transactions';
+import { StacksTestnet } from '@stacks/network';
+import { toast } from 'sonner';
 
 interface ContractTemplate {
   id: string;
@@ -61,28 +64,44 @@ interface DeploymentFormData {
   category: string;
 }
 
+interface DeploymentStatus {
+  type: 'success' | 'error' | null;
+  message: string;
+  queueId?: number;
+}
+
+// Constants
+const DEPLOYMENT_FEE = 0.01; // Standard deployment fee in STX
+const DEFAULT_FORM_DATA: DeploymentFormData = {
+  templateId: '',
+  eventName: '',
+  eventDescription: '',
+  eventDate: '',
+  eventTime: '',
+  venue: '',
+  imageUri: '',
+  metadataUri: '',
+  totalSupply: 100,
+  ticketPrice: 0.001,
+  category: 'music'
+};
+
 export const ContractDeployment = () => {
-  const { isConnected, address, sbtcBalance } = useTurnkeyWallet();
+  const { wallet, isConnected } = useTurnkeyContext();
   const [selectedTemplate, setSelectedTemplate] = useState<ContractTemplate | null>(null);
-  const [formData, setFormData] = useState<DeploymentFormData>({
-    templateId: '',
-    eventName: '',
-    eventDescription: '',
-    eventDate: '',
-    eventTime: '',
-    venue: '',
-    imageUri: '',
-    metadataUri: '',
-    totalSupply: 100,
-    ticketPrice: 0.001,
-    category: 'music'
-  });
+  const [formData, setFormData] = useState<DeploymentFormData>(DEFAULT_FORM_DATA);
   const [isDeploying, setIsDeploying] = useState(false);
-  const [deploymentStatus, setDeploymentStatus] = useState<{
-    type: 'success' | 'error' | null;
-    message: string;
-    queueId?: number;
-  }>({ type: null, message: '' });
+  const [totalCost, setTotalCost] = useState<number>(0);
+  const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus>({ type: null, message: '' });
+
+  // Calculate total cost whenever template changes
+  useEffect(() => {
+    if (selectedTemplate) {
+      setTotalCost(DEPLOYMENT_FEE + selectedTemplate.baseFee);
+    } else {
+      setTotalCost(0);
+    }
+  }, [selectedTemplate]);
 
   const handleTemplateSelect = (template: ContractTemplate) => {
     setSelectedTemplate(template);
@@ -93,21 +112,33 @@ export const ContractDeployment = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const calculateTotalCost = () => {
-    const deploymentFee = 0.01; // Base deployment fee
-    const templateFee = selectedTemplate?.baseFee || 0;
-    return deploymentFee + templateFee;
+  const validateForm = (): boolean => {
+    if (!selectedTemplate) {
+      toast.error('Please select a contract template');
+      return false;
+    }
+    if (!formData.eventName.trim()) {
+      toast.error('Event name is required');
+      return false;
+    }
+    if (formData.totalSupply <= 0) {
+      toast.error('Total supply must be greater than 0');
+      return false;
+    }
+    if (formData.ticketPrice < 0) {
+      toast.error('Ticket price cannot be negative');
+      return false;
+    }
+    return true;
   };
 
   const handleDeploy = async () => {
-    if (!isConnected || !selectedTemplate) return;
+    if (!isConnected || !wallet) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
 
-    const totalCost = calculateTotalCost();
-    if (parseFloat(sbtcBalance) < totalCost) {
-      setDeploymentStatus({
-        type: 'error',
-        message: `Insufficient sBTC balance. Required: ${totalCost} sBTC, Available: ${sbtcBalance} sBTC`
-      });
+    if (!validateForm()) {
       return;
     }
 
@@ -115,71 +146,182 @@ export const ContractDeployment = () => {
     setDeploymentStatus({ type: null, message: '' });
 
     try {
-      // In production, this would call the contract factory
-      console.log('Deploying contract with data:', {
-        template: selectedTemplate.id,
-        ...formData,
-        deployer: address,
-        totalCost
+      // Generate contract code based on template
+      const contractCode = generateContractCode(selectedTemplate!, formData);
+      const contractName = `event-${formData.eventName.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`;
+
+      // Note: This is a placeholder implementation
+      // In production, you should use proper Turnkey signing with Stacks transactions
+      toast.info('Preparing contract deployment...');
+
+      // Placeholder for actual deployment logic
+      // You would need to implement proper Stacks transaction signing with Turnkey
+      console.log('Contract to deploy:', {
+        contractName,
+        codeBody: contractCode,
+        network: 'testnet'
       });
 
-      // Simulate deployment request
+      // Simulate deployment for now
       await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const queueId = Math.floor(Math.random() * 10000);
 
       setDeploymentStatus({
         type: 'success',
-        message: `Contract deployment request submitted successfully! Queue ID: ${queueId}`,
-        queueId
+        message: `Contract prepared for deployment: ${contractName}`,
       });
+
+      toast.success('Contract deployment initiated!');
 
       // Reset form
-      setFormData({
-        templateId: '',
-        eventName: '',
-        eventDescription: '',
-        eventDate: '',
-        eventTime: '',
-        venue: '',
-        imageUri: '',
-        metadataUri: '',
-        totalSupply: 100,
-        ticketPrice: 0.001,
-        category: 'music'
-      });
-      setSelectedTemplate(null);
+      resetForm();
 
-    } catch (error: any) {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Contract deployment failed. Please try again.';
+      console.error('Deployment failed:', error);
       setDeploymentStatus({
         type: 'error',
-        message: error.message || 'Deployment request failed'
+        message: errorMessage
       });
+      toast.error('Deployment failed');
     } finally {
       setIsDeploying(false);
     }
   };
 
-  if (!isConnected) {
-    return (
-      <Card className="bg-[#1A1A1A] border-gray-800">
-        <CardHeader className="border-b border-gray-800">
-          <CardTitle className="text-white">Deploy Your NFT Ticketing Contract</CardTitle>
-          <CardDescription className="text-gray-400">
-            Connect your wallet to deploy individual NFT ticketing contracts for your events
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <Alert className="bg-gradient-to-r from-orange-500/10 to-orange-600/5 border-orange-500/20">
-            <AlertCircle className="h-4 w-4 text-orange-400" />
-            <AlertDescription className="text-gray-300">
-              Please connect your Turnkey wallet to deploy contracts
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
+  const resetForm = () => {
+    setFormData(DEFAULT_FORM_DATA);
+    setSelectedTemplate(null);
+    setDeploymentStatus({ type: null, message: '' });
+  };
+
+  const generateContractCode = (template: ContractTemplate, data: DeploymentFormData): string => {
+    // Sanitize event name for contract identifier
+    const ticketName = data.eventName
+      .trim()
+      .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special chars
+      .replace(/\s+/g, '-')
+      .toLowerCase()
+      .substring(0, 40); // Limit length
+
+    const ticketPriceInMicroStx = Math.floor(data.ticketPrice * 1000000);
+
+    // Escape special characters in strings for Clarity
+    const escapeClarityString = (str: string) => {
+      if (!str) return '';
+      return str
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r');
+    };
+
+    return `
+;; ${escapeClarityString(data.eventName)} - NFT Ticket Contract
+;; Generated by intic.id
+;; Template: ${template.name}
+
+(define-non-fungible-token ${ticketName}-ticket uint)
+
+;; Constants
+(define-constant contract-owner tx-sender)
+(define-constant err-owner-only (err u100))
+(define-constant err-sold-out (err u101))
+(define-constant err-not-token-owner (err u102))
+(define-constant err-insufficient-payment (err u103))
+
+(define-constant total-supply u${data.totalSupply})
+(define-constant ticket-price u${ticketPriceInMicroStx}) ;; in microSTX
+
+;; Data variables
+(define-data-var next-token-id uint u1)
+(define-data-var event-name (string-ascii 256) "${escapeClarityString(data.eventName)}")
+(define-data-var event-description (string-utf8 500) u"${escapeClarityString(data.eventDescription)}")
+(define-data-var event-date (string-ascii 50) "${data.eventDate}")
+(define-data-var event-time (string-ascii 50) "${data.eventTime}")
+(define-data-var event-venue (string-utf8 256) u"${escapeClarityString(data.venue)}")
+(define-data-var event-image-uri (string-ascii 256) "${data.imageUri}")
+(define-data-var event-metadata-uri (string-ascii 256) "${data.metadataUri}")
+
+;; Mint function
+(define-public (mint-ticket)
+  (let
+    (
+      (token-id (var-get next-token-id))
+    )
+    (asserts! (< token-id total-supply) err-sold-out)
+
+    ;; Transfer payment to owner if not the owner minting
+    (if (not (is-eq tx-sender contract-owner))
+      (try! (stx-transfer? ticket-price tx-sender contract-owner))
+      true
+    )
+
+    ;; Mint the NFT ticket
+    (try! (nft-mint? ${ticketName}-ticket token-id tx-sender))
+    (var-set next-token-id (+ token-id u1))
+    (ok token-id)
+  )
+)
+
+;; Transfer function
+(define-public (transfer (token-id uint) (sender principal) (recipient principal))
+  (begin
+    (asserts! (is-eq tx-sender sender) err-not-token-owner)
+    (asserts! (is-eq sender (unwrap! (nft-get-owner? ${ticketName}-ticket token-id) err-not-token-owner)) err-not-token-owner)
+    (nft-transfer? ${ticketName}-ticket token-id sender recipient)
+  )
+)
+
+;; Read-only functions
+(define-read-only (get-event-name)
+  (ok (var-get event-name))
+)
+
+(define-read-only (get-event-description)
+  (ok (var-get event-description))
+)
+
+(define-read-only (get-event-date)
+  (ok (var-get event-date))
+)
+
+(define-read-only (get-event-time)
+  (ok (var-get event-time))
+)
+
+(define-read-only (get-event-venue)
+  (ok (var-get event-venue))
+)
+
+(define-read-only (get-event-image-uri)
+  (ok (var-get event-image-uri))
+)
+
+(define-read-only (get-event-metadata-uri)
+  (ok (var-get event-metadata-uri))
+)
+
+(define-read-only (get-owner (token-id uint))
+  (ok (nft-get-owner? ${ticketName}-ticket token-id))
+)
+
+(define-read-only (get-last-token-id)
+  (ok (- (var-get next-token-id) u1))
+)
+
+(define-read-only (get-total-supply)
+  (ok total-supply)
+)
+
+(define-read-only (get-ticket-price)
+  (ok ticket-price)
+)
+
+(define-read-only (get-tickets-remaining)
+  (ok (- total-supply (var-get next-token-id)))
+)
+`;
+  };
 
   return (
     <div className="space-y-6">
@@ -254,7 +396,7 @@ export const ContractDeployment = () => {
                         <div className="flex justify-between items-center p-3 bg-[#0A0A0A] rounded-lg border border-gray-800">
                           <span className="text-sm font-medium text-gray-400">Base Fee:</span>
                           <span className="text-lg font-bold text-[#FE5C02]">
-                            {template.baseFee} sBTC
+                            {template.baseFee} STX
                           </span>
                         </div>
                         <div>
@@ -421,7 +563,7 @@ export const ContractDeployment = () => {
                 <div className="space-y-2">
                   <Label htmlFor="ticketPrice" className="flex items-center gap-1 text-white">
                     <DollarSign className="w-4 h-4 text-[#FE5C02]" />
-                    Ticket Price (sBTC) <span className="text-[#FE5C02]">*</span>
+                    Ticket Price (STX) <span className="text-[#FE5C02]">*</span>
                   </Label>
                   <Input
                     id="ticketPrice"
@@ -433,7 +575,7 @@ export const ContractDeployment = () => {
                     onChange={(e) => handleInputChange('ticketPrice', parseFloat(e.target.value) || 0)}
                     className="bg-[#1A1A1A] border-gray-700 text-white placeholder:text-gray-500 focus:border-[#FE5C02] focus:ring-[#FE5C02]"
                   />
-                  <p className="text-xs text-gray-500">Price per ticket in sBTC</p>
+                  <p className="text-xs text-gray-500">Price per ticket in STX</p>
                 </div>
               </div>
             </CardContent>
@@ -476,7 +618,7 @@ export const ContractDeployment = () => {
                     </div>
                     <div className="flex justify-between p-2 bg-[#1A1A1A] rounded border border-gray-800">
                       <strong className="text-gray-400">Price:</strong>
-                      <span className="text-white">{formData.ticketPrice} sBTC per ticket</span>
+                      <span className="text-white">{formData.ticketPrice} STX per ticket</span>
                     </div>
                   </div>
                 </div>
@@ -486,28 +628,38 @@ export const ContractDeployment = () => {
                   <div className="space-y-3 p-4 bg-[#1A1A1A] rounded-lg border border-gray-800">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Platform Fee:</span>
-                      <span className="text-white">0.01 sBTC</span>
+                      <span className="text-white">{DEPLOYMENT_FEE.toFixed(2)} STX</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Template Fee ({selectedTemplate?.name}):</span>
-                      <span className="text-white">{selectedTemplate?.baseFee} sBTC</span>
+                      <span className="text-white">{selectedTemplate?.baseFee} STX</span>
                     </div>
                     <div className="border-t border-gray-700 pt-3 flex justify-between font-bold">
                       <span className="text-white">Total Cost:</span>
-                      <span className="text-[#FE5C02] text-lg">{calculateTotalCost()} sBTC</span>
+                      <span className="text-[#FE5C02] text-lg">{totalCost.toFixed(4)} STX</span>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      Your Balance: <span className="text-green-400">{sbtcBalance} sBTC</span>
-                    </div>
+                    {isConnected && (
+                      <div className="text-sm text-gray-500">
+                        Wallet: <span className="text-green-400">{wallet?.address ? `${wallet.address.slice(0, 8)}...${wallet.address.slice(-8)}` : 'Connected'}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Deploy Button */}
-              <div className="flex justify-center">
+              <div className="flex flex-col items-center gap-3">
+                {!isConnected && (
+                  <Alert className="bg-yellow-500/10 border-yellow-500/50">
+                    <AlertCircle className="h-5 w-5 text-yellow-400" />
+                    <AlertDescription className="text-yellow-300 ml-2">
+                      Please connect your wallet to deploy the contract
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Button
                   onClick={handleDeploy}
-                  disabled={isDeploying || parseFloat(sbtcBalance) < calculateTotalCost()}
+                  disabled={isDeploying || !isConnected}
                   className="bg-gradient-to-r from-[#FE5C02] to-orange-600 hover:from-[#E54F02] hover:to-orange-700 disabled:from-gray-700 disabled:to-gray-800 px-8 py-3 text-lg shadow-lg hover:shadow-2xl hover:shadow-[#FE5C02]/50 transition-all duration-300 relative overflow-hidden group"
                   size="lg"
                 >

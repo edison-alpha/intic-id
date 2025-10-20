@@ -1,15 +1,18 @@
 import React from "react";
 import { cn } from "@/lib/utils";
+import stacksImg from '../assets/stacks.png';
+import inticImg from '../assets/intic.png';
+import ippImg from '../assets/ipp.png';
 
 const LogoSlider = () => {
   // Array of logos - duplicate for seamless infinite scroll
   const logos = [
-    { src: "/src/img/stacks.png", name: "Stacks" },
-    { src: "/src/img/intic.png", name: "Intic" },
-    { src: "/src/img/ipp.png", name: "IPP" },
-    { src: "/src/img/stacks.png", name: "Stacks" },
-    { src: "/src/img/intic.png", name: "Intic" },
-    { src: "/src/img/ipp.png", name: "IPP" },
+    { src: stacksImg, name: "Stacks" },
+    { src: inticImg, name: "Intic" },
+    { src: ippImg, name: "IPP" },
+    { src: stacksImg, name: "Stacks" },
+    { src: inticImg, name: "Intic" },
+    { src: ippImg, name: "IPP" },
   ];
 
   return (

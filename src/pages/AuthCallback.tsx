@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useTurnkey } from '@turnkey/react-wallet-kit';
 
 /**
  * OAuth Callback Page
@@ -11,7 +10,6 @@ import { useTurnkey } from '@turnkey/react-wallet-kit';
  */
 export const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
-  const { createWallet } = useTurnkey();
 
   useEffect(() => {
     const handleOAuthCallback = async () => {
@@ -39,42 +37,23 @@ export const AuthCallback: React.FC = () => {
 
         console.log('✅ OAuth callback received:', { code: code.substring(0, 10) + '...', state });
         
-        toast.loading('Creating your wallet...');
+        // Turnkey wallet creation disabled
+        toast.info('Wallet creation is currently disabled');
         
-        // Create Stacks wallet after successful OAuth
-        // Turnkey will associate this wallet with the authenticated user
-        const walletId = await createWallet({
-          walletName: `Stacks Wallet ${Date.now()}`,
-          accounts: [
-            {
-              curve: 'CURVE_SECP256K1',
-              pathFormat: 'PATH_FORMAT_BIP32',
-              path: "m/44'/5757'/0'/0/0", // Stacks derivation path
-              addressFormat: 'ADDRESS_FORMAT_UNCOMPRESSED',
-            },
-          ],
-        });
-
-        console.log('✅ Wallet created:', walletId);
-        
-        toast.dismiss();
-        toast.success('Successfully authenticated with Google!');
-        
-        // Redirect to app
+        // Redirect to app after a short delay
         setTimeout(() => {
           navigate('/app');
-        }, 1000);
+        }, 2000);
         
       } catch (error: any) {
         console.error('Error handling OAuth callback:', error);
-        toast.dismiss();
         toast.error(error.message || 'Authentication failed. Please try again.');
         navigate('/');
       }
     };
 
     handleOAuthCallback();
-  }, [navigate, createWallet]);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900">

@@ -17,7 +17,6 @@ import {
   Copy,
   Settings
 } from 'lucide-react';
-import { useTurnkeyWallet } from '@/contexts/TurnkeyWalletContext';
 import ContractManagement from '@/components/ContractManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -99,7 +98,6 @@ interface DeploymentQueueProps {
 }
 
 export const DeploymentQueue = ({ showManagement = false }: DeploymentQueueProps = {}) => {
-  const { address, isConnected } = useTurnkeyWallet();
   const [deployments, setDeployments] = useState<DeploymentItem[]>(mockDeploymentQueue);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -108,12 +106,11 @@ export const DeploymentQueue = ({ showManagement = false }: DeploymentQueueProps
 
   // Filter deployments based on user, search, and status
   const filteredDeployments = deployments.filter(deployment => {
-    const matchesUser = !isConnected || deployment.deployer === address;
     const matchesSearch = deployment.eventName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          deployment.queueId.toString().includes(searchTerm);
     const matchesStatus = statusFilter === 'all' || deployment.status === statusFilter;
 
-    return matchesUser && matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus;
   });
 
   const refreshQueue = async () => {
@@ -123,7 +120,6 @@ export const DeploymentQueue = ({ showManagement = false }: DeploymentQueueProps
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // In production, this would fetch from the contract
-    console.log('Refreshing deployment queue...');
 
     setIsRefreshing(false);
   };

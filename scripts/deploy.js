@@ -3,7 +3,8 @@
  * Deploys all contracts to Stacks testnet in proper order
  */
 
-const { StacksTestnet, StacksMainnet } = require('@stacks/network');
+import { STACKS_TESTNET, STACKS_MAINNET } from '@stacks/network';
+import txPkg from '@stacks/transactions';
 const {
   makeContractDeploy,
   makeContractCall,
@@ -12,12 +13,17 @@ const {
   PostConditionMode,
   createSTXPostCondition,
   FungibleConditionCode,
-} = require('@stacks/transactions');
-const { readFileSync } = require('fs');
-const path = require('path');
+  stringUtf8CV,
+  uintCV,
+  boolCV,
+} = txPkg;
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Configuration
-const NETWORK = process.env.STACKS_NETWORK === 'mainnet' ? new StacksMainnet() : new StacksTestnet();
+const NETWORK = process.env.STACKS_NETWORK === 'mainnet' ? STACKS_MAINNET : STACKS_TESTNET;
+NETWORK.coreApiUrl = NETWORK.client.baseUrl;
 const PRIVATE_KEY = process.env.STACKS_PRIVATE_KEY;
 const DEPLOYER_ADDRESS = process.env.STACKS_ADDRESS;
 
@@ -41,11 +47,11 @@ const CONTRACTS = {
 
 // Utility functions
 const readContract = (filename) => {
-  const contractPath = path.join(__dirname, '..', 'contracts', filename);
+  const contractPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'contracts', filename);
   return readFileSync(contractPath, 'utf8');
 };
 
-const deployContract = async (contractName, contractCode, fee = 10000) => {
+const deployContract = async (contractName, contractCode, fee = 50000) => {
   console.log(`\n📄 Deploying ${contractName}...`);
 
   const txOptions = {
@@ -59,7 +65,10 @@ const deployContract = async (contractName, contractCode, fee = 10000) => {
 
   try {
     const transaction = await makeContractDeploy(txOptions);
-    const result = await broadcastTransaction(transaction, NETWORK);
+    const result = await broadcastTransaction({
+      transaction,
+      network: 'testnet'
+    });
 
     console.log(`✅ ${contractName} deployment broadcasted`);
     console.log(`📊 Transaction ID: ${result.txid}`);
@@ -200,12 +209,8 @@ const deployAll = async () => {
     // Step 3: Initialize contracts
     console.log('\n⚙️  Step 3: Initializing contracts...');
 
-    // Initialize Proof of Fandom with default badge types
-    console.log('🏆 Creating default badge types...');
-
-    const { stringUtf8CV, uintCV, boolCV } = require('@stacks/transactions');
-
     // Create "Event Attendee" badge type
+    console.log('🏆 Creating default badge types...');
     txid = await callContract(
       DEPLOYER_ADDRESS,
       'proof-of-fandom',
@@ -367,7 +372,7 @@ const deployAll = async () => {
 };
 
 // Execute deployment
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   deployAll()
     .then(() => {
       console.log('\n🚀 Deployment completed successfully!');
@@ -379,4 +384,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { deployAll, deployContract, callContract, waitForConfirmation };
+export { deployAll, deployContract, callContract, waitForConfirmation };
