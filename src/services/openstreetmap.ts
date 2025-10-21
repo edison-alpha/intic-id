@@ -25,7 +25,10 @@ export interface VenueDetails {
   lon: string;
 }
 
-const NOMINATIM_BASE_URL = '/api/nominatim';
+// Use proxy in development, direct API in production
+const NOMINATIM_BASE_URL = import.meta.env.DEV
+  ? '/api/nominatim'
+  : 'https://nominatim.openstreetmap.org';
 
 /**
  * Search for venues using OpenStreetMap Nominatim
@@ -44,10 +47,24 @@ export const searchVenues = async (query: string): Promise<VenueLocation[]> => {
       'accept-language': 'en',
     });
 
-    const response = await fetch(`${NOMINATIM_BASE_URL}/search?${params}`);
+    const url = `${NOMINATIM_BASE_URL}/search?${params}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'InticApp/1.0',
+      },
+    });
 
     if (!response.ok) {
+      console.error(`Nominatim API error: ${response.status} ${response.statusText}`);
       throw new Error(`Nominatim API error: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response from Nominatim:', text.substring(0, 200));
+      throw new Error('Invalid response from venue search API');
     }
 
     const data = await response.json();
@@ -81,10 +98,24 @@ export const getVenueDetails = async (lat: string, lon: string): Promise<VenueDe
       'accept-language': 'en',
     });
 
-    const response = await fetch(`${NOMINATIM_BASE_URL}/reverse?${params}`);
+    const url = `${NOMINATIM_BASE_URL}/reverse?${params}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'InticApp/1.0',
+      },
+    });
 
     if (!response.ok) {
+      console.error(`Nominatim API error: ${response.status} ${response.statusText}`);
       throw new Error(`Nominatim API error: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response from Nominatim:', text.substring(0, 200));
+      throw new Error('Invalid response from venue details API');
     }
 
     const data = await response.json();
@@ -117,10 +148,24 @@ export const geocodeAddress = async (address: string): Promise<{ lat: string; lo
       limit: '1',
     });
 
-    const response = await fetch(`${NOMINATIM_BASE_URL}/search?${params}`);
+    const url = `${NOMINATIM_BASE_URL}/search?${params}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'InticApp/1.0',
+      },
+    });
 
     if (!response.ok) {
+      console.error(`Nominatim API error: ${response.status} ${response.statusText}`);
       throw new Error(`Nominatim API error: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response from Nominatim:', text.substring(0, 200));
+      return null;
     }
 
     const data = await response.json();

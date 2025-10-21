@@ -1,6 +1,7 @@
 import React, { createContext, useContext, ReactNode, useEffect, useState } from 'react';
-import { serializeCV } from '@stacks/transactions';
-import { showConnect } from '@stacks/connect';
+import { PostConditionMode } from '@stacks/transactions';
+import { showConnect, openContractCall, openSTXTransfer, openContractDeploy } from '@stacks/connect';
+import { StacksTestnet } from '@stacks/network';
 
 // Declare wallet provider types
 declare global {
@@ -69,9 +70,51 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const connectWallet = async () => {
     return new Promise<void>((resolve, reject) => {
       try {
-        console.log('🔍 Starting wallet connection with @stacks/connect...');
+        console.log('🔍 Starting wallet connection...');
 
-        // Use @stacks/connect which handles all wallets (Xverse, Hiro, Leather) automatically
+        // Check if we're in a mobile wallet browser
+        const isMobileWallet = !!(window.XverseProviders || window.btc);
+        console.log('Mobile wallet detected:', isMobileWallet);
+
+        // For mobile wallets, use direct provider API
+        if (isMobileWallet && window.XverseProviders?.StacksProvider) {
+          console.log('Using Xverse mobile provider');
+          window.XverseProviders.StacksProvider.request('getAddresses', {
+            purposes: ['payment'],
+          })
+            .then((response: any) => {
+              console.log('✅ Xverse response:', response);
+              if (response && response.result && response.result.addresses) {
+                const addresses = response.result.addresses;
+                const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
+
+                if (stxAddress) {
+                  const walletData = {
+                    address: stxAddress.address,
+                    publicKey: stxAddress.publicKey
+                  };
+
+                  setWallet(walletData);
+                  setIsWalletConnected(true);
+                  localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                  console.log('✅ Wallet connected:', walletData);
+                  resolve();
+                } else {
+                  reject(new Error('No STX address found'));
+                }
+              } else {
+                reject(new Error('Invalid response from wallet'));
+              }
+            })
+            .catch((error: any) => {
+              console.error('❌ Xverse error:', error);
+              reject(error);
+            });
+          return;
+        }
+
+        // For desktop, try @stacks/connect
+        console.log('Using @stacks/connect for desktop');
         showConnect({
           appDetails: {
             name: 'Intic',
@@ -149,68 +192,34 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       throw new Error(`Insufficient balance. Have: ${balance} STX, need: ${amount} STX`);
     }
 
-    try {
-      let provider = null;
-      const walletType = localStorage.getItem('wallet-type');
+    return new Promise<string>((resolve, reject) => {
+      try {
+        const amountInMicroSTX = Math.floor(amount * 1000000);
 
-      // Try Xverse first if it was the connected wallet
-      if (walletType === 'xverse' && typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
-        provider = window.XverseProviders.StacksProvider;
-      } else if (typeof window !== 'undefined' && window.LeatherProvider) {
-        provider = window.LeatherProvider;
-      } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
-        provider = window.HiroWalletProvider;
-      } else if (typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
-        provider = window.XverseProviders.StacksProvider;
+        openSTXTransfer({
+          recipient,
+          amount: amountInMicroSTX.toString(),
+          memo: 'Transfer from Intic',
+          network: new StacksTestnet(),
+          appDetails: {
+            name: 'Intic',
+            icon: window.location.origin + '/logo.png',
+          },
+          onFinish: (data: any) => {
+            console.log('✅ STX transfer successful:', data);
+            const txId = data.txId || data.txid || 'Transaction submitted';
+            resolve(txId);
+          },
+          onCancel: () => {
+            console.log('❌ STX transfer cancelled');
+            reject(new Error('User cancelled the transaction'));
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Error sending STX:', error);
+        reject(error);
       }
-
-      if (!provider) {
-        throw new Error('Wallet extension not found. Please make sure your wallet is installed and unlocked.');
-      }
-
-      // Use stx_transferStx method
-      // Amount should be in microSTX as a string
-      const amountInMicroSTX = (amount * 1000000).toString();
-
-      const requestParams = {
-        recipient: recipient,
-        amount: amountInMicroSTX,
-        memo: 'Transfer from Pulse Robot',
-      };
-
-      const response = await provider.request('stx_transferStx', requestParams);
-
-      // Check if there's an error in the response
-      if (response && response.error) {
-        console.error('Transfer error:', response.error);
-        const errorMsg = response.error.message || 'Transaction failed';
-        throw new Error(errorMsg);
-      }
-
-      // Check for successful transaction ID
-      if (response && response.result) {
-        if (typeof response.result === 'string') {
-          return response.result;
-        } else if (response.result.txid) {
-          return response.result.txid;
-        } else if (response.result.txId) {
-          return response.result.txId;
-        }
-      }
-
-      return 'Transaction initiated successfully';
-    } catch (error: any) {
-      console.error('Error sending STX:', error);
-
-      // Better error messages
-      if (error.message) {
-        throw new Error(error.message);
-      } else if (error.error && error.error.message) {
-        throw new Error(error.error.message);
-      } else {
-        throw new Error('Failed to send STX. Please check your wallet and try again.');
-      }
-    }
+    });
   };
 
   const deployContract = async (contractName: string, code: string): Promise<string> => {
@@ -218,176 +227,56 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       throw new Error('No wallet connected');
     }
 
-    try {
-      let provider = null;
-      const walletType = localStorage.getItem('wallet-type');
-
-      // Try to use the wallet that was connected
-      if (walletType === 'xverse' && typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
-        provider = window.XverseProviders.StacksProvider;
-      } else if (typeof window !== 'undefined' && window.LeatherProvider) {
-        provider = window.LeatherProvider;
-      } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
-        provider = window.HiroWalletProvider;
-      } else if (typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
-        provider = window.XverseProviders.StacksProvider;
-      }
-
-      if (!provider) {
-        throw new Error('Wallet extension not found. Please make sure your wallet is installed and unlocked.');
-      }
-
-
-
-      // Validate contract name
-      if (!/^[a-z][a-z0-9-]*$/.test(contractName)) {
-        throw new Error(`Invalid contract name: ${contractName}. Must start with lowercase letter and contain only lowercase letters, numbers, and hyphens.`);
-      }
-
-      if (contractName.length > 128) {
-        throw new Error(`Contract name too long: ${contractName.length} chars (max 128)`);
-      }
-
-      // Validate code size (max ~100KB for testnet)
-      if (code.length > 100000) {
-        throw new Error(`Contract code too large: ${code.length} bytes (max ~100KB)`);
-      }
-
-      // Use stx_deployContract method with correct format
-      // CRITICAL: Always specify testnet explicitly to avoid mainnet accidents
-      const requestParams = {
-        name: contractName,
-        clarityCode: code,
-        network: 'testnet' as const, // Explicitly specify testnet
-        // Optional but recommended: specify anchor mode
-        postConditionMode: 'allow', // Allow the contract to make transfers
-      };
-
-
-
-      let response;
-      try {
-        response = await provider.request('stx_deployContract', requestParams);
-
-      } catch (providerError: any) {
-        console.error('❌ Provider request failed:', providerError);
-        console.error('Error type:', typeof providerError);
-        console.error('Error keys:', providerError ? Object.keys(providerError) : 'null');
-        console.error('Error message:', providerError?.message);
-        console.error('Error stack:', providerError?.stack);
-
-        // Parse specific error types
-        let errorMessage = providerError?.message || 'Unknown deployment error';
-
-        // Check for specific blockchain errors
-        if (errorMessage.includes('unable to parse') || errorMessage.includes('parse node response') || errorMessage.includes('failed to broadcast')) {
-          errorMessage = '❌ Contract Deployment Failed - Blockchain Node Error\n\n' +
-                        'The blockchain node could not process your contract. Common causes:\n' +
-                        '• Invalid characters in event name/description (emojis, special symbols)\n' +
-                        '• Network connectivity issues\n' +
-                        '• Blockchain node temporarily unavailable\n\n' +
-                        '✅ Solutions:\n' +
-                        '1. Remove emojis and special characters from event name/description\n' +
-                        '2. Use only ASCII characters (A-Z, 0-9, basic punctuation)\n' +
-                        '3. Wait 30 seconds and try again\n' +
-                        '4. Check your internet connection\n\n' +
-                        'If the error persists, your event details may contain unsupported characters.\n\n' +
-                        'Technical error: ' + providerError?.message;
-        } else if (errorMessage.includes('broadcast')) {
-          errorMessage = '❌ Transaction Broadcast Failed\n\n' +
-                        'Failed to broadcast transaction to blockchain. Possible causes:\n' +
-                        '• Insufficient STX balance for fees (~0.3 STX required)\n' +
-                        '• Network connectivity issues\n' +
-                        '• Blockchain node temporarily unavailable\n\n' +
-                        '✅ Solutions:\n' +
-                        '1. Check your wallet STX balance\n' +
-                        '2. Get testnet STX: https://explorer.hiro.so/sandbox/faucet?chain=testnet\n' +
-                        '3. Wait a moment and try again\n' +
-                        '4. Check your internet connection\n\n' +
-                        'Technical error: ' + providerError?.message;
-        } else if (errorMessage.includes('insufficient')) {
-          errorMessage = '❌ Insufficient Balance\n\n' +
-                        'You don\'t have enough STX for deployment fees.\n\n' +
-                        '✅ Get testnet STX:\n' +
-                        'Visit: https://explorer.hiro.so/sandbox/faucet?chain=testnet\n' +
-                        'Paste your wallet address and request STX\n\n' +
-                        'Required: ~0.3 STX for contract deployment';
-        } else if (errorMessage.includes('nonce')) {
-          errorMessage = '❌ Transaction Nonce Error\n\n' +
-                        'Previous transaction still pending.\n\n' +
-                        '✅ Solution:\n' +
-                        'Wait 1-2 minutes for the previous transaction to confirm, then try again.';
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      // Handle various response formats
-      if (response) {
-        // Check for error
-        if (response.error) {
-          console.error('Deployment error:', response.error);
-
-          // Parse error message for common issues
-          let errorMsg = response.error.message || JSON.stringify(response.error);
-
-          if (errorMsg.includes('unable to parse') || errorMsg.includes('parse node response')) {
-            errorMsg = 'Contract deployment failed - the blockchain node could not process the contract. This might be due to:\n' +
-                      '• Invalid Clarity syntax in the generated contract\n' +
-                      '• Contract code contains unsupported characters\n' +
-                      '• Network connectivity issues\n\n' +
-                      'Original error: ' + errorMsg;
-          } else if (errorMsg.includes('broadcast')) {
-            errorMsg = 'Failed to broadcast transaction - please check:\n' +
-                      '• Your wallet has sufficient STX for fees (~0.3 STX)\n' +
-                      '• You are connected to the testnet network\n' +
-                      '• The blockchain node is accessible\n\n' +
-                      'Original error: ' + errorMsg;
-          }
-
-          throw new Error(errorMsg);
-        }
-
-        // Extract transaction ID from various formats
-        let txId = null;
-        
-        if (typeof response === 'string') {
-          txId = response;
-        } else if (response.result) {
-          if (typeof response.result === 'string') {
-            txId = response.result;
-          } else if (response.result.txid) {
-            txId = response.result.txid;
-          } else if (response.result.txId) {
-            txId = response.result.txId;
-          }
-        } else if (response.txid) {
-          txId = response.txid;
-        } else if (response.txId) {
-          txId = response.txId;
-        }
-
-        if (txId) {
-  
-          return txId;
-        }
-      }
-
-      // If we reach here, deployment was initiated but no txId
-
-      return 'pending';
-    } catch (error: any) {
-      console.error('Error deploying contract:', error);
-
-      // Better error messages
-      if (error.message) {
-        throw new Error(error.message);
-      } else if (error.error && error.error.message) {
-        throw new Error(error.error.message);
-      } else {
-        throw new Error('Failed to deploy contract. Please check your wallet and try again.');
-      }
+    // Validate contract name
+    if (!/^[a-z][a-z0-9-]*$/.test(contractName)) {
+      throw new Error(`Invalid contract name: ${contractName}. Must start with lowercase letter and contain only lowercase letters, numbers, and hyphens.`);
     }
+
+    if (contractName.length > 128) {
+      throw new Error(`Contract name too long: ${contractName.length} chars (max 128)`);
+    }
+
+    // Validate code size (max ~100KB for testnet)
+    if (code.length > 100000) {
+      throw new Error(`Contract code too large: ${code.length} bytes (max ~100KB)`);
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      try {
+        openContractDeploy({
+          contractName,
+          codeBody: code,
+          network: new StacksTestnet(),
+          postConditionMode: PostConditionMode.Allow,
+          appDetails: {
+            name: 'Intic',
+            icon: window.location.origin + '/logo.png',
+          },
+          onFinish: (data: any) => {
+            console.log('✅ Contract deployment successful:', data);
+            const txId = data.txId || data.txid || 'pending';
+            resolve(txId);
+          },
+          onCancel: () => {
+            console.log('❌ Contract deployment cancelled');
+            reject(new Error('User cancelled contract deployment'));
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Error deploying contract:', error);
+
+        // Better error messages
+        let errorMessage = error?.message || 'Failed to deploy contract';
+
+        if (errorMessage.includes('insufficient')) {
+          errorMessage = 'Insufficient STX balance for deployment fees (~0.3 STX required). Get testnet STX: https://explorer.hiro.so/sandbox/faucet?chain=testnet';
+        } else if (errorMessage.includes('nonce')) {
+          errorMessage = 'Previous transaction still pending. Wait 1-2 minutes and try again.';
+        }
+
+        reject(new Error(errorMessage));
+      }
+    });
   };
 
   const getBalance = async (): Promise<number> => {
@@ -433,68 +322,45 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       throw new Error('No wallet connected');
     }
 
-    try {
+    return new Promise<any>((resolve, reject) => {
+      try {
+        console.log('🔍 Calling contract function:', {
+          contract: `${params.contractAddress}.${params.contractName}`,
+          function: params.functionName,
+          args: params.functionArgs
+        });
 
+        openContractCall({
+          contractAddress: params.contractAddress,
+          contractName: params.contractName,
+          functionName: params.functionName,
+          functionArgs: params.functionArgs,
+          network: new StacksTestnet(),
+          postConditionMode: PostConditionMode.Allow,
+          appDetails: {
+            name: 'Intic',
+            icon: window.location.origin + '/logo.png',
+          },
+          onFinish: (data: any) => {
+            console.log('✅ Contract call successful:', data);
 
-      // Get wallet provider
-      let provider = null;
-      const walletType = localStorage.getItem('wallet-type');
+            // Call the custom onFinish callback if provided
+            if (params.onFinish) {
+              params.onFinish(data);
+            }
 
-      // Try to use the wallet that was connected
-      if (walletType === 'xverse' && typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
-        provider = window.XverseProviders.StacksProvider;
-      } else if (typeof window !== 'undefined' && window.LeatherProvider) {
-        provider = window.LeatherProvider;
-      } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
-        provider = window.HiroWalletProvider;
-      } else if (typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
-        provider = window.XverseProviders.StacksProvider;
+            resolve(data);
+          },
+          onCancel: () => {
+            console.log('❌ Contract call cancelled');
+            reject(new Error('User cancelled the transaction'));
+          },
+        });
+      } catch (error: any) {
+        console.error('❌ Error calling contract function:', error);
+        reject(error);
       }
-
-      if (!provider) {
-        throw new Error('Wallet extension not found');
-      }
-
-      // Serialize Clarity values to hex strings (EXACT same as UpdateEventDetails)
-      const serializedArgs = params.functionArgs.map(arg => {
-        const serialized = serializeCV(arg);
-        return `0x${Buffer.from(serialized).toString('hex')}`;
-      });
-
-
-
-      // Use EXACT same format as MintNFTButton and UpdateEventDetails
-      const response = await provider.request('stx_callContract', {
-        contract: `${params.contractAddress}.${params.contractName}`, // ✅ Combined string!
-        functionName: params.functionName,
-        functionArgs: serializedArgs, // ✅ Hex strings, not CV objects!
-        network: 'testnet',
-        postConditionMode: 'allow', // Allow any transfers
-      });
-
-
-
-      // Extract txId (same as MintNFTButton)
-      let txId = null;
-      if (typeof response === 'string') {
-        txId = response;
-      } else if (response?.result) {
-        txId = typeof response.result === 'string' 
-          ? response.result 
-          : (response.result.txid || response.result.txId);
-      } else if (response?.txid || response?.txId) {
-        txId = response.txid || response.txId;
-      }
-
-      if (txId && params.onFinish) {
-        params.onFinish({ txId });
-      }
-
-      return response;
-    } catch (error: any) {
-      console.error('❌ Error calling contract function:', error);
-      throw error;
-    }
+    });
   };
 
   const value: WalletContextType = {

@@ -61,6 +61,8 @@ export default function UpdateEventDetails({
           setShowVenueResults(true);
         } catch (error) {
           console.error('Venue search error:', error);
+          setVenueSearchResults([]);
+          setShowVenueResults(false);
         } finally {
           setIsSearchingVenue(false);
         }

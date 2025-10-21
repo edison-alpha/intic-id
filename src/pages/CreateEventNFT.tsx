@@ -189,6 +189,10 @@ const CreateEventNFT = () => {
           setShowVenueResults(true);
         } catch (error) {
           console.error('Error searching venues:', error);
+          setVenueResults([]);
+          setShowVenueResults(false);
+          // Show toast notification if needed
+          // toast.error('Failed to search venues. Please try again.');
         } finally {
           setIsSearchingVenue(false);
         }

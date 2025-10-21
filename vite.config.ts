@@ -39,12 +39,18 @@ export default defineConfig(({ mode }) => ({
     'global': 'globalThis',
   },
   optimizeDeps: {
-    include: ['@stacks/connect', '@stacks/transactions', '@stacks/network'],
+    include: [
+      '@stacks/connect',
+      '@stacks/transactions',
+      '@stacks/network',
+      '@stacks/connect > @stencil/core',
+    ],
     esbuildOptions: {
       define: {
         global: 'globalThis',
       },
     },
+    exclude: [],
   },
   build: {
     commonjsOptions: {
