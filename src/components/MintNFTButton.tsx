@@ -31,7 +31,7 @@ export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
   eventTime = 'TBA',
   location = 'Venue TBA'
 }) => {
-  const { wallet } = useWallet();
+  const { wallet, callContractFunction } = useWallet();
   const [isMinting, setIsMinting] = useState(false);
 
   const handleMint = async () => {
@@ -81,34 +81,16 @@ export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
         // Ignore errors - contract might not have this function
       }
 
-      // Use wallet provider to call contract
-      let provider = null;
-      if (typeof window !== 'undefined') {
-        if (window.LeatherProvider) {
-          provider = window.LeatherProvider;
-        } else if (window.HiroWalletProvider) {
-          provider = window.HiroWalletProvider;
-        } else {
-          throw new Error('Please install Leather or Hiro wallet extension');
-        }
-      }
-
-      if (!provider) {
-        throw new Error('Wallet provider not found');
-      }
-
-      
       if (isOwner) {
         toast.loading('Minting ticket as event organizer (free)...', { id: 'mint-nft' });
       }
-      
-      // Call contract with Allow mode to permit the STX transfer
-      const response = await provider.request('stx_callContract', {
-        contract: `${contractAddress}.${contractName}`,
+
+      // Use callContractFunction from WalletContext (supports mobile & desktop)
+      const response = await callContractFunction({
+        contractAddress,
+        contractName,
         functionName: 'mint-ticket',
         functionArgs: [],
-        network: 'testnet',
-        postConditionMode: 'allow', // String format: allow the STX transfer
       });
 
       toast.dismiss('mint-nft');
@@ -117,15 +99,21 @@ export const MintNFTButton: React.FC<MintNFTButtonProps> = ({
       if (response) {
         // Extract txId from various possible response formats
         let txId = null;
-        
+
+        console.log('🎫 Mint response:', response);
+
         if (typeof response === 'string') {
           txId = response;
+        } else if (response.txId) {
+          txId = response.txId;
+        } else if (response.txid) {
+          txId = response.txid;
         } else if (response.result) {
-          txId = typeof response.result === 'string' 
-            ? response.result 
-            : response.result.txid || response.result.txId;
-        } else if (response.txid || response.txId) {
-          txId = response.txid || response.txId;
+          if (typeof response.result === 'string') {
+            txId = response.result;
+          } else if (response.result.txId || response.result.txid) {
+            txId = response.result.txId || response.result.txid;
+          }
         }
         
         if (txId) {
