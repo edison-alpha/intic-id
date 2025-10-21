@@ -1,5 +1,6 @@
 import React, { createContext, useContext, ReactNode, useEffect, useState } from 'react';
 import { serializeCV } from '@stacks/transactions';
+import { showConnect } from '@stacks/connect';
 
 // Declare wallet provider types
 declare global {
@@ -66,95 +67,61 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   }, []);
 
   const connectWallet = async () => {
-    try {
-      // Try Xverse Wallet first (Mobile & Desktop support)
-      if (typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
-        try {
-          const response = await window.XverseProviders.StacksProvider.request('getAddresses', {
-            purposes: ['payment'],
-          });
+    return new Promise<void>((resolve, reject) => {
+      try {
+        console.log('🔍 Starting wallet connection with @stacks/connect...');
 
-          if (response && response.result && response.result.addresses) {
-            const addresses = response.result.addresses;
-            const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
+        // Use @stacks/connect which handles all wallets (Xverse, Hiro, Leather) automatically
+        showConnect({
+          appDetails: {
+            name: 'Intic',
+            icon: window.location.origin + '/logo.png',
+          },
+          redirectTo: '/',
+          onFinish: (data: any) => {
+            console.log('✅ Wallet connected via @stacks/connect:', data);
 
-            if (stxAddress) {
+            if (data.userSession && data.userSession.loadUserData) {
+              const userData = data.userSession.loadUserData();
               const walletData = {
-                address: stxAddress.address,
-                publicKey: stxAddress.publicKey
+                address: userData.profile.stxAddress.testnet || userData.profile.stxAddress.mainnet,
+                publicKey: userData.profile.stxAddress.publicKey
               };
 
               setWallet(walletData);
               setIsWalletConnected(true);
               localStorage.setItem('wallet-address', JSON.stringify(walletData));
-              localStorage.setItem('wallet-type', 'xverse');
-              return;
+              console.log('✅ Wallet data saved:', walletData);
+              resolve();
+            } else if (data.addresses) {
+              // Alternative format
+              const stxAddress = data.addresses.find((addr: any) => addr.symbol === 'STX');
+              if (stxAddress) {
+                const walletData = {
+                  address: stxAddress.address,
+                  publicKey: stxAddress.publicKey
+                };
+
+                setWallet(walletData);
+                setIsWalletConnected(true);
+                localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                console.log('✅ Wallet data saved:', walletData);
+                resolve();
+              }
+            } else {
+              reject(new Error('Unable to extract wallet address from connection'));
             }
-          }
-        } catch (xverseError) {
-          console.error('Xverse connection error:', xverseError);
-          // Continue to try other wallets
-        }
+          },
+          onCancel: () => {
+            console.log('❌ User cancelled wallet connection');
+            reject(new Error('User cancelled wallet connection'));
+          },
+        });
+      } catch (error) {
+        console.error('❌ Error in connectWallet:', error);
+        reject(error);
       }
-
-      // Try LeatherProvider (Desktop)
-      if (typeof window !== 'undefined' && window.LeatherProvider) {
-        const response = await window.LeatherProvider.request('getAddresses');
-
-        if (response && response.result && response.result.addresses) {
-          const addresses = response.result.addresses;
-          const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
-
-          if (stxAddress) {
-            const walletData = {
-              address: stxAddress.address,
-              publicKey: stxAddress.publicKey
-            };
-
-            setWallet(walletData);
-            setIsWalletConnected(true);
-            localStorage.setItem('wallet-address', JSON.stringify(walletData));
-            localStorage.setItem('wallet-type', 'leather');
-            return;
-          }
-        }
-      }
-
-      // Try Hiro Wallet (Desktop)
-      if (typeof window !== 'undefined' && window.HiroWalletProvider) {
-        const response = await window.HiroWalletProvider.request('getAddresses');
-
-        if (response && response.result && response.result.addresses) {
-          const addresses = response.result.addresses;
-          const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
-
-          if (stxAddress) {
-            const walletData = {
-              address: stxAddress.address,
-              publicKey: stxAddress.publicKey
-            };
-
-            setWallet(walletData);
-            setIsWalletConnected(true);
-            localStorage.setItem('wallet-address', JSON.stringify(walletData));
-            localStorage.setItem('wallet-type', 'hiro');
-            return;
-          }
-        }
-      }
-
-      // Fallback: Show instruction to install wallet
-      throw new Error(
-        'Please install a Stacks wallet.\n\n' +
-        'Download from:\n' +
-        '• Xverse (Mobile & Desktop): https://xverse.app\n' +
-        '• Hiro Wallet (Desktop): https://wallet.hiro.so/wallet/install-web\n' +
-        '• Leather (Desktop): https://leather.io/install-extension'
-      );
-    } catch (error) {
-      console.error('Error connecting wallet:', error);
-      throw error;
-    }
+    });
   };
 
   const disconnectWallet = async () => {
