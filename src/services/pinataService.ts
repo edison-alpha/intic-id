@@ -37,6 +37,14 @@ export interface NFTMetadata {
  */
 export const uploadImageToPinata = async (file: File): Promise<string> => {
   try {
+    // Check if JWT is available
+    if (!PINATA_JWT) {
+      console.error('❌ PINATA_JWT not configured');
+      throw new Error('Pinata API key not configured. Please check your environment variables.');
+    }
+
+    console.log('📤 Uploading image to Pinata:', file.name, `(${(file.size / 1024).toFixed(2)} KB)`);
+
     const formData = new FormData();
     formData.append('file', file);
 
@@ -62,17 +70,37 @@ export const uploadImageToPinata = async (file: File): Promise<string> => {
       body: formData,
     });
 
+    console.log('📥 Pinata response status:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Failed to upload image to Pinata');
+      const errorText = await response.text();
+      console.error('❌ Pinata error response:', errorText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`Failed to upload image: ${response.status} ${response.statusText}`);
+      }
+
+      throw new Error(errorData.error?.message || errorData.message || 'Failed to upload image to Pinata');
     }
 
     const data: PinataUploadResponse = await response.json();
     const ipfsUrl = `${PINATA_GATEWAY}/${data.IpfsHash}`;
 
+    console.log('✅ Image uploaded successfully:', ipfsUrl);
     return ipfsUrl;
-  } catch (error) {
-    console.error('Error uploading image to Pinata:', error);
+  } catch (error: any) {
+    console.error('❌ Error uploading image to Pinata:', error);
+
+    // Better error messages
+    if (error.message.includes('Failed to fetch')) {
+      throw new Error('Failed to connect to storage service. Please check your internet connection and try again.');
+    } else if (error.message.includes('CORS')) {
+      throw new Error('Network error. Please try again or use a different browser.');
+    }
+
     throw error;
   }
 };
@@ -84,6 +112,13 @@ export const uploadMetadataToPinata = async (
   metadata: NFTMetadata
 ): Promise<{ ipfsUrl: string; cid: string }> => {
   try {
+    // Check if JWT is available
+    if (!PINATA_JWT) {
+      console.error('❌ PINATA_JWT not configured');
+      throw new Error('Pinata API key not configured. Please check your environment variables.');
+    }
+
+    console.log('📤 Uploading metadata to Pinata:', metadata.name);
 
     const response = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
       method: 'POST',
@@ -107,18 +142,38 @@ export const uploadMetadataToPinata = async (
       }),
     });
 
+    console.log('📥 Pinata metadata response status:', response.status);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Failed to upload metadata to Pinata');
+      const errorText = await response.text();
+      console.error('❌ Pinata metadata error response:', errorText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        throw new Error(`Failed to upload metadata: ${response.status} ${response.statusText}`);
+      }
+
+      throw new Error(errorData.error?.message || errorData.message || 'Failed to upload metadata to Pinata');
     }
 
     const data: PinataUploadResponse = await response.json();
     const ipfsUrl = `${PINATA_GATEWAY}/${data.IpfsHash}`;
     const cid = data.IpfsHash;
 
+    console.log('✅ Metadata uploaded successfully:', ipfsUrl);
     return { ipfsUrl, cid };
-  } catch (error) {
-    console.error('Error uploading metadata to Pinata:', error);
+  } catch (error: any) {
+    console.error('❌ Error uploading metadata to Pinata:', error);
+
+    // Better error messages
+    if (error.message.includes('Failed to fetch')) {
+      throw new Error('Failed to connect to storage service. Please check your internet connection and try again.');
+    } else if (error.message.includes('CORS')) {
+      throw new Error('Network error. Please try again or use a different browser.');
+    }
+
     throw error;
   }
 };

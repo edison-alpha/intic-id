@@ -19,6 +19,7 @@ import CreateTicket from "./pages/CreateTicket";
 import Settings from "./pages/Settings";
 import { AuthCallback } from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
+import { TestPinata } from "./pages/TestPinata";
 
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/app/profile" element={<Profile />} />
               <Route path="/app/settings" element={<Settings />} />
               <Route path="/create-ticket" element={<CreateTicket />} />
+              <Route path="/test-pinata" element={<TestPinata />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
