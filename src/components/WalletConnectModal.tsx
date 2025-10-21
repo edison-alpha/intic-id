@@ -12,11 +12,26 @@ interface WalletConnectModalProps {
 export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ isOpen, onClose }) => {
   const { connectWallet, isWalletConnected } = useWallet();
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
   const handleConnect = async () => {
     setError(null);
+    setDebugInfo(null);
     setIsConnecting(true);
+
+    // Collect debug info
+    if (import.meta.env.DEV) {
+      const providers = {
+        XverseProviders: !!(window as any).XverseProviders,
+        StacksProvider: !!(window as any).XverseProviders?.StacksProvider,
+        LeatherProvider: !!(window as any).LeatherProvider,
+        HiroWalletProvider: !!(window as any).HiroWalletProvider,
+        btc: !!(window as any).btc,
+      };
+      setDebugInfo(`Available: ${Object.entries(providers).filter(([, v]) => v).map(([name]) => name).join(', ') || 'None'}`);
+    }
+
     try {
       await connectWallet();
       onClose();
@@ -39,6 +54,12 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({ isOpen, 
         </DialogHeader>
 
         <div className="space-y-4 mt-6">
+          {debugInfo && import.meta.env.DEV && (
+            <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded text-xs text-blue-400">
+              {debugInfo}
+            </div>
+          )}
+
           {error && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />

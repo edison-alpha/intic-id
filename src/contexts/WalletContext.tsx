@@ -68,77 +68,31 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   }, []);
 
   const connectWallet = async () => {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>(async (resolve, reject) => {
       try {
         console.log('🔍 Starting wallet connection...');
+        console.log('Available providers:', {
+          XverseProviders: !!window.XverseProviders,
+          StacksProvider: !!window.XverseProviders?.StacksProvider,
+          LeatherProvider: !!window.LeatherProvider,
+          HiroWalletProvider: !!window.HiroWalletProvider,
+          btc: !!window.btc,
+        });
 
-        // Check if we're in a mobile wallet browser
-        const isMobileWallet = !!(window.XverseProviders || window.btc);
-        console.log('Mobile wallet detected:', isMobileWallet);
-
-        // For mobile wallets, use direct provider API
-        if (isMobileWallet && window.XverseProviders?.StacksProvider) {
-          console.log('Using Xverse mobile provider');
-          window.XverseProviders.StacksProvider.request('getAddresses', {
-            purposes: ['payment'],
-          })
-            .then((response: any) => {
-              console.log('✅ Xverse response:', response);
-              if (response && response.result && response.result.addresses) {
-                const addresses = response.result.addresses;
-                const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
-
-                if (stxAddress) {
-                  const walletData = {
-                    address: stxAddress.address,
-                    publicKey: stxAddress.publicKey
-                  };
-
-                  setWallet(walletData);
-                  setIsWalletConnected(true);
-                  localStorage.setItem('wallet-address', JSON.stringify(walletData));
-                  console.log('✅ Wallet connected:', walletData);
-                  resolve();
-                } else {
-                  reject(new Error('No STX address found'));
-                }
-              } else {
-                reject(new Error('Invalid response from wallet'));
-              }
-            })
-            .catch((error: any) => {
-              console.error('❌ Xverse error:', error);
-              reject(error);
+        // Try Xverse Provider (mobile & desktop extension)
+        if (window.XverseProviders?.StacksProvider) {
+          try {
+            console.log('🔄 Trying Xverse StacksProvider...');
+            const response = await window.XverseProviders.StacksProvider.request('getAddresses', {
+              purposes: ['payment'],
             });
-          return;
-        }
 
-        // For desktop, try @stacks/connect
-        console.log('Using @stacks/connect for desktop');
-        showConnect({
-          appDetails: {
-            name: 'Intic',
-            icon: window.location.origin + '/logo.png',
-          },
-          redirectTo: '/',
-          onFinish: (data: any) => {
-            console.log('✅ Wallet connected via @stacks/connect:', data);
+            console.log('✅ Xverse response:', response);
 
-            if (data.userSession && data.userSession.loadUserData) {
-              const userData = data.userSession.loadUserData();
-              const walletData = {
-                address: userData.profile.stxAddress.testnet || userData.profile.stxAddress.mainnet,
-                publicKey: userData.profile.stxAddress.publicKey
-              };
+            if (response && response.result && response.result.addresses) {
+              const addresses = response.result.addresses;
+              const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
 
-              setWallet(walletData);
-              setIsWalletConnected(true);
-              localStorage.setItem('wallet-address', JSON.stringify(walletData));
-              console.log('✅ Wallet data saved:', walletData);
-              resolve();
-            } else if (data.addresses) {
-              // Alternative format
-              const stxAddress = data.addresses.find((addr: any) => addr.symbol === 'STX');
               if (stxAddress) {
                 const walletData = {
                   address: stxAddress.address,
@@ -148,20 +102,133 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
                 setWallet(walletData);
                 setIsWalletConnected(true);
                 localStorage.setItem('wallet-address', JSON.stringify(walletData));
-                console.log('✅ Wallet data saved:', walletData);
+                localStorage.setItem('wallet-type', 'xverse');
+                console.log('✅ Wallet connected via Xverse:', walletData);
                 resolve();
+                return;
               }
-            } else {
-              reject(new Error('Unable to extract wallet address from connection'));
             }
-          },
-          onCancel: () => {
-            console.log('❌ User cancelled wallet connection');
-            reject(new Error('User cancelled wallet connection'));
-          },
-        });
+          } catch (xverseError) {
+            console.error('❌ Xverse provider error:', xverseError);
+            // Continue to try other methods
+          }
+        }
+
+        // Try Leather Provider
+        if (window.LeatherProvider) {
+          try {
+            console.log('🔄 Trying Leather provider...');
+            const response = await window.LeatherProvider.request('getAddresses');
+
+            if (response && response.result && response.result.addresses) {
+              const addresses = response.result.addresses;
+              const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
+
+              if (stxAddress) {
+                const walletData = {
+                  address: stxAddress.address,
+                  publicKey: stxAddress.publicKey
+                };
+
+                setWallet(walletData);
+                setIsWalletConnected(true);
+                localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                localStorage.setItem('wallet-type', 'leather');
+                console.log('✅ Wallet connected via Leather:', walletData);
+                resolve();
+                return;
+              }
+            }
+          } catch (leatherError) {
+            console.error('❌ Leather provider error:', leatherError);
+            // Continue to try other methods
+          }
+        }
+
+        // Try Hiro Wallet Provider
+        if (window.HiroWalletProvider) {
+          try {
+            console.log('🔄 Trying Hiro Wallet provider...');
+            const response = await window.HiroWalletProvider.request('getAddresses');
+
+            if (response && response.result && response.result.addresses) {
+              const addresses = response.result.addresses;
+              const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
+
+              if (stxAddress) {
+                const walletData = {
+                  address: stxAddress.address,
+                  publicKey: stxAddress.publicKey
+                };
+
+                setWallet(walletData);
+                setIsWalletConnected(true);
+                localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                localStorage.setItem('wallet-type', 'hiro');
+                console.log('✅ Wallet connected via Hiro:', walletData);
+                resolve();
+                return;
+              }
+            }
+          } catch (hiroError) {
+            console.error('❌ Hiro provider error:', hiroError);
+            // Continue to try @stacks/connect
+          }
+        }
+
+        // Last resort: try @stacks/connect (may not work on all mobile browsers)
+        console.log('🔄 Trying @stacks/connect as fallback...');
+        try {
+          showConnect({
+            appDetails: {
+              name: 'Intic',
+              icon: window.location.origin + '/logo.png',
+            },
+            redirectTo: '/',
+            onFinish: (data: any) => {
+              console.log('✅ @stacks/connect response:', data);
+
+              if (data.userSession && data.userSession.loadUserData) {
+                const userData = data.userSession.loadUserData();
+                const walletData = {
+                  address: userData.profile.stxAddress.testnet || userData.profile.stxAddress.mainnet,
+                  publicKey: userData.profile.stxAddress.publicKey
+                };
+
+                setWallet(walletData);
+                setIsWalletConnected(true);
+                localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                console.log('✅ Wallet connected via @stacks/connect:', walletData);
+                resolve();
+              } else if (data.addresses) {
+                const stxAddress = data.addresses.find((addr: any) => addr.symbol === 'STX');
+                if (stxAddress) {
+                  const walletData = {
+                    address: stxAddress.address,
+                    publicKey: stxAddress.publicKey
+                  };
+
+                  setWallet(walletData);
+                  setIsWalletConnected(true);
+                  localStorage.setItem('wallet-address', JSON.stringify(walletData));
+                  console.log('✅ Wallet connected via @stacks/connect:', walletData);
+                  resolve();
+                }
+              } else {
+                reject(new Error('Unable to extract wallet address'));
+              }
+            },
+            onCancel: () => {
+              console.log('❌ User cancelled wallet connection');
+              reject(new Error('User cancelled wallet connection'));
+            },
+          });
+        } catch (connectError) {
+          console.error('❌ @stacks/connect error:', connectError);
+          reject(new Error('Failed to connect wallet. Please make sure you are using a Stacks wallet browser or have a wallet extension installed.'));
+        }
       } catch (error) {
-        console.error('❌ Error in connectWallet:', error);
+        console.error('❌ Fatal error in connectWallet:', error);
         reject(error);
       }
     });
