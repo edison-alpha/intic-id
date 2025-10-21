@@ -11,11 +11,14 @@ import {
   AnchorMode,
   PostConditionMode,
 } from '@stacks/transactions';
+import { openContractCall } from '@stacks/connect';
 import { StacksTestnet, StacksMainnet } from '@stacks/network';
 import type { StacksNetwork } from '@stacks/network';
 
 const NETWORK = import.meta.env.VITE_STACKS_NETWORK || 'testnet';
 const network: StacksNetwork = NETWORK === 'mainnet' ? new StacksMainnet() : new StacksTestnet();
+
+export { NETWORK };
 
 export interface CheckInData {
   contractAddress: string;
@@ -119,6 +122,10 @@ export function parseCheckInQRData(qrData: string): CheckInData | null {
     }
 
     const [contractId, tokenIdStr, eventDate, eventTime] = parts;
+    if (!contractId || !tokenIdStr || !eventDate || !eventTime) {
+      return null;
+    }
+
     const [contractAddress, contractName] = contractId.split('.');
 
     if (!contractAddress || !contractName) {
@@ -262,16 +269,16 @@ export async function validateTicket(
  * Get user's tickets for a specific event
  */
 export async function getUserTicketsForEvent(
-  contractAddress: string,
-  contractName: string,
-  eventId: number,
-  userAddress: string
+  _contractAddress: string,
+  _contractName: string,
+  _eventId: number,
+  _userAddress: string
 ): Promise<number[]> {
   try {
     // This is a simplified version - in reality you'd need to query all user's NFTs
     // and filter by event ID
     // For now, we'll return an empty array and let the user select their ticket manually
-    console.log('📋 [CheckIn] Getting tickets for event:', eventId);
+    console.log('📋 [CheckIn] Getting tickets for event:', _eventId);
     return [];
   } catch (error) {
     console.error('❌ Error getting user tickets:', error);
@@ -281,45 +288,48 @@ export async function getUserTicketsForEvent(
 
 /**
  * Check-in ticket (mark as used) - User initiates this after scanning EO's QR
+ * Uses browser wallet extension (Hiro/Xverse) to sign transaction
  */
 export async function checkInTicket(
   contractAddress: string,
   contractName: string,
-  tokenId: number,
-  privateKey: string
+  tokenId: number
 ): Promise<CheckInResult> {
   try {
     console.log('✅ [CheckIn] Processing check-in:', { contractAddress, contractName, tokenId });
 
-    const txOptions = {
-      contractAddress,
-      contractName,
-      functionName: 'use-ticket',
-      functionArgs: [uintCV(tokenId)],
-      senderKey: privateKey,
-      network,
-      anchorMode: AnchorMode.Any,
-      postConditionMode: PostConditionMode.Allow,
-      fee: 10000, // 0.01 STX fee
-    };
-
-    const transaction = await makeContractCall(txOptions);
-    const txId = transaction.txid();
-
-    console.log('✅ [CheckIn] Transaction submitted:', txId);
-
-    return {
-      success: true,
-      txId,
-      message: 'Check-in successful! Ticket marked as used.',
-      status: 'used',
-    };
+    return new Promise((resolve, reject) => {
+      openContractCall({
+        contractAddress,
+        contractName,
+        functionName: 'use-ticket',
+        functionArgs: [uintCV(tokenId)],
+        network,
+        anchorMode: AnchorMode.Any,
+        postConditionMode: PostConditionMode.Allow,
+        onFinish: (data) => {
+          console.log('✅ [CheckIn] Transaction submitted:', data.txId);
+          resolve({
+            success: true,
+            txId: data.txId,
+            message: 'Check-in successful! Ticket marked as used.',
+            status: 'used',
+          });
+        },
+        onCancel: () => {
+          console.log('⚠️ [CheckIn] User cancelled transaction');
+          reject(new Error('Transaction cancelled by user'));
+        },
+      });
+    });
 
   } catch (error: any) {
     console.error('❌ [CheckIn] Error during check-in:', error);
 
     let message = 'Check-in failed';
-    if (error.message?.includes('already used')) {
+    if (error.message?.includes('cancelled')) {
+      message = 'Transaction cancelled';
+    } else if (error.message?.includes('already used')) {
       message = 'Ticket already used';
     } else if (error.message?.includes('not authorized')) {
       message = 'Not authorized to use this ticket';

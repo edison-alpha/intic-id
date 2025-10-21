@@ -14,6 +14,7 @@ import {
   parseCheckInPointQR,
   checkInTicket,
   CheckInPointData,
+  NETWORK,
 } from '@/services/ticketCheckInService';
 import { getUserTicketsFromIndexerCached } from '@/services/nftFetcher';
 import { useWallet } from '@/contexts/WalletContext';
@@ -133,29 +134,58 @@ const AttendeeCheckIn = () => {
     console.log('✅ [AttendeeCheckIn] Event match confirmed!');
     setCheckInPoint(pointData);
     setIsScanning(false);
-    setCurrentStep('confirm');
 
     toast.success('Event verified!', {
-      description: `Ready to check-in with ticket #${selectedTicket.tokenId}`,
+      description: `Processing check-in for ticket #${selectedTicket.tokenId}`,
     });
+
+    // LANGSUNG TRIGGER TX POPUP setelah scan berhasil
+    console.log('🚀 [AttendeeCheckIn] Directly triggering transaction...');
+    await handleDirectCheckIn(pointData);
   };
 
-  const handleConfirmCheckIn = async () => {
-    if (!selectedTicket || !checkInPoint || !wallet?.privateKey) {
-      toast.error('Missing information');
+  const handleDirectCheckIn = async (checkInPointData: CheckInPointData) => {
+    console.log('🔍 [DirectCheckIn] Checking prerequisites...');
+    console.log('   selectedTicket:', selectedTicket);
+    console.log('   checkInPointData:', checkInPointData);
+    console.log('   wallet:', wallet);
+
+    if (!selectedTicket) {
+      console.error('❌ [DirectCheckIn] No ticket selected!');
+      toast.error('Missing information', { description: 'No ticket selected' });
       return;
     }
 
+    if (!checkInPointData) {
+      console.error('❌ [DirectCheckIn] No check-in point data!');
+      toast.error('Missing information', { description: 'No check-in point data' });
+      return;
+    }
+
+    if (!wallet?.address) {
+      console.error('❌ [DirectCheckIn] Wallet not connected!');
+      toast.error('Wallet not connected', {
+        description: 'Please connect your wallet to check-in',
+      });
+      return;
+    }
+
+    console.log('✅ [DirectCheckIn] All prerequisites met!');
+
+    // LANGSUNG TRIGGER TX POPUP - Wallet popup akan muncul langsung
+    setCurrentStep('confirm');
     setIsProcessing(true);
 
     try {
       console.log('🎯 [AttendeeCheckIn] Calling use-ticket...');
+      console.log('   Contract:', checkInPointData.contractAddress);
+      console.log('   Name:', checkInPointData.contractName);
+      console.log('   Token ID:', selectedTicket.tokenId);
 
       const result = await checkInTicket(
-        checkInPoint.contractAddress,
-        checkInPoint.contractName,
-        selectedTicket.tokenId,
-        wallet.privateKey
+        checkInPointData.contractAddress,
+        checkInPointData.contractName,
+        selectedTicket.tokenId
       );
 
       if (result.success) {
@@ -170,12 +200,24 @@ const AttendeeCheckIn = () => {
         toast.error('Check-in failed', {
           description: result.message,
         });
+        // Reset ke scan QR jika gagal
+        setCurrentStep('scan-qr');
       }
     } catch (error: any) {
       console.error('❌ [AttendeeCheckIn] Error:', error);
-      toast.error('Error', {
-        description: error.message || 'Failed to check-in',
-      });
+      if (error.message?.includes('cancelled')) {
+        toast.info('Transaction cancelled', {
+          description: 'You cancelled the check-in transaction',
+        });
+        // Reset ke scan QR jika user cancel
+        setCurrentStep('scan-qr');
+      } else {
+        toast.error('Error', {
+          description: error.message || 'Failed to check-in',
+        });
+        // Reset ke scan QR jika error
+        setCurrentStep('scan-qr');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -268,7 +310,7 @@ const AttendeeCheckIn = () => {
             currentStep === 'confirm' ? 'bg-[#FE5C02] text-white' : 'bg-[#1A1A1A] text-gray-400'
           }`}>
             <CheckCircle className="w-4 h-4" />
-            <span className="text-sm font-medium">3. Confirm</span>
+            <span className="text-sm font-medium">3. Approve TX</span>
           </div>
         </div>
 
@@ -368,66 +410,101 @@ const AttendeeCheckIn = () => {
           </div>
         )}
 
-        {/* STEP 3: Confirm Check-In */}
+        {/* STEP 3: Confirm Check-In / Processing */}
         {currentStep === 'confirm' && selectedTicket && checkInPoint && (
           <div>
-            {/* Event Match Confirmed */}
-            <div className="mb-6 p-6 bg-gradient-to-br from-green-500/10 to-emerald-600/10 border-2 border-green-500 rounded-2xl text-center">
-              <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-              <h3 className="text-xl font-bold text-white mb-2">Event Verified!</h3>
-              <p className="text-gray-300 text-sm">QR code matches your ticket</p>
-            </div>
+            {isProcessing ? (
+              /* Processing State - Waiting for wallet approval */
+              <>
+                <div className="mb-6 p-6 bg-gradient-to-br from-blue-500/10 to-purple-600/10 border-2 border-blue-500 rounded-2xl text-center">
+                  <Loader2 className="w-12 h-12 text-blue-500 mx-auto mb-3 animate-spin" />
+                  <h3 className="text-xl font-bold text-white mb-2">Approve Transaction in Wallet</h3>
+                  <p className="text-gray-300 text-sm">Check your wallet extension for transaction approval</p>
+                  <p className="text-blue-400 text-xs mt-2">This will mark your ticket as used</p>
+                </div>
 
-            {/* Ticket Details */}
-            <div className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-6 mb-6">
-              <h3 className="text-white font-semibold mb-4">Check-In Details</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-start">
-                  <span className="text-gray-400 text-sm">Event</span>
-                  <span className="text-white font-semibold text-right">{selectedTicket.eventName}</span>
+                {/* Ticket Details */}
+                <div className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-6 mb-6">
+                  <h3 className="text-white font-semibold mb-4">Transaction Details</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 text-sm">Event</span>
+                      <span className="text-white font-semibold text-right">{selectedTicket.eventName}</span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 text-sm">Ticket Token ID</span>
+                      <span className="text-white font-mono">#{selectedTicket.tokenId}</span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 text-sm">Function</span>
+                      <span className="text-orange-400 font-mono text-sm">use-ticket</span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 text-sm">Network</span>
+                      <span className="text-gray-300 text-sm">{NETWORK === 'mainnet' ? 'Mainnet' : 'Testnet'}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-start">
-                  <span className="text-gray-400 text-sm">Token ID</span>
-                  <span className="text-white font-mono">#{selectedTicket.tokenId}</span>
-                </div>
-                <div className="flex justify-between items-start">
-                  <span className="text-gray-400 text-sm">Date</span>
-                  <span className="text-white">{selectedTicket.eventDate}</span>
-                </div>
-                <div className="flex justify-between items-start">
-                  <span className="text-gray-400 text-sm">Location</span>
-                  <span className="text-white text-right">{selectedTicket.location || 'TBA'}</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setCheckInPoint(null);
-                  setCurrentStep('scan-qr');
-                }}
-                className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-gray-800 text-white rounded-xl hover:border-gray-700 transition-colors"
-                disabled={isProcessing}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmCheckIn}
-                disabled={isProcessing}
-                className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing...
-                  </span>
-                ) : (
-                  'Confirm Check-In'
-                )}
-              </button>
-            </div>
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
+                  <p className="text-blue-400 text-sm">⏳ Waiting for wallet confirmation...</p>
+                  <p className="text-gray-400 text-xs mt-1">You can cancel and try again if needed</p>
+                </div>
+              </>
+            ) : (
+              /* Fallback Confirm State - Jika TX gagal atau user cancel */
+              <>
+                <div className="mb-6 p-6 bg-gradient-to-br from-amber-500/10 to-orange-600/10 border-2 border-amber-500 rounded-2xl text-center">
+                  <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+                  <h3 className="text-xl font-bold text-white mb-2">Transaction Cancelled</h3>
+                  <p className="text-gray-300 text-sm">You cancelled the check-in transaction</p>
+                </div>
+
+                {/* Ticket Details */}
+                <div className="bg-[#1A1A1A] border border-gray-800 rounded-2xl p-6 mb-6">
+                  <h3 className="text-white font-semibold mb-4">Check-In Details</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 text-sm">Event</span>
+                      <span className="text-white font-semibold text-right">{selectedTicket.eventName}</span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 text-sm">Token ID</span>
+                      <span className="text-white font-mono">#{selectedTicket.tokenId}</span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 text-sm">Date</span>
+                      <span className="text-white">{selectedTicket.eventDate}</span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-400 text-sm">Location</span>
+                      <span className="text-white text-right">{selectedTicket.location || 'TBA'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manual Retry Button (Fallback) */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setCheckInPoint(null);
+                      setCurrentStep('scan-qr');
+                      setIsProcessing(false);
+                    }}
+                    className="flex-1 px-4 py-3 bg-[#0A0A0A] border border-gray-800 text-white rounded-xl hover:border-gray-700 transition-colors"
+                  >
+                    Scan Again
+                  </button>
+                  <button
+                    onClick={() => checkInPoint && handleDirectCheckIn(checkInPoint)}
+                    disabled={!checkInPoint}
+                    className="flex-1 px-4 py-3 bg-[#FE5C02] hover:bg-[#E54F02] disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
