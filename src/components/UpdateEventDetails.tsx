@@ -8,7 +8,7 @@ import { useWallet } from '@/contexts/WalletContext';
 import { Calendar, MapPin, Image, FileText, Edit, CheckCircle2, Search, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { searchVenues, type VenueLocation } from '@/services/openstreetmap';
-import { stringAsciiCV, uintCV, serializeCV } from '@stacks/transactions';
+import { stringAsciiCV, uintCV } from '@stacks/transactions';
 
 interface UpdateEventDetailsProps {
   contractAddress: string;
@@ -23,13 +23,13 @@ interface UpdateEventDetailsProps {
   };
 }
 
-export default function UpdateEventDetails({ 
-  contractAddress, 
+export default function UpdateEventDetails({
+  contractAddress,
   contractName,
-  currentDetails 
+  currentDetails
 }: UpdateEventDetailsProps) {
   const { toast } = useToast();
-  const { wallet, isWalletConnected } = useWallet();
+  const { wallet, isWalletConnected, callContractFunction } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
 
   // Individual field states
@@ -105,42 +105,29 @@ export default function UpdateEventDetails({
 
     setIsLoading(true);
     try {
-      const provider = (window as any).LeatherProvider || (window as any).HiroWalletProvider;
-      
-      if (!provider) {
-        throw new Error('No wallet provider found');
-      }
+      console.log('🔍 Updating field:', fieldName, 'with function:', functionName);
 
-      // Serialize Clarity values to hex strings
-      const serializedArgs = args.map(arg => {
-        const serialized = serializeCV(arg);
-        return `0x${Buffer.from(serialized).toString('hex')}`;
-      });
-
-
-
-      const response = await provider.request('stx_callContract', {
-        contract: `${contractAddress}.${contractName}`,
+      const response = await callContractFunction({
+        contractAddress,
+        contractName,
         functionName,
-        functionArgs: serializedArgs,
-        network: 'testnet',
-        postConditionMode: 'allow',
+        functionArgs: args,
+        onFinish: (data: any) => {
+          console.log('✅ Field update successful:', data);
+          toast({
+            title: "Update Submitted! ✅",
+            description: (
+              <div className="space-y-2">
+                <p>Field: <strong>{fieldName}</strong></p>
+                <p className="text-xs font-mono break-all">{data.txId}</p>
+                <p className="text-xs">Check status on explorer</p>
+              </div>
+            ),
+          });
+        }
       });
 
-
-
-      if (response.txId) {
-        toast({
-          title: "Update Submitted! ✅",
-          description: (
-            <div className="space-y-2">
-              <p>Field: <strong>{fieldName}</strong></p>
-              <p className="text-xs font-mono break-all">{response.txId}</p>
-              <p className="text-xs">Check status on explorer</p>
-            </div>
-          ),
-        });
-      }
+      console.log('✅ Update response:', response);
     } catch (error: any) {
       console.error('❌ Update error:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
@@ -299,15 +286,9 @@ export default function UpdateEventDetails({
 
     setIsLoading(true);
     try {
-      const provider = (window as any).LeatherProvider || (window as any).HiroWalletProvider;
-      
-      if (!provider) {
-        throw new Error('No wallet provider found');
-      }
-
       const timestamp = new Date(eventDate).getTime();
 
-
+      console.log('🔍 Batch updating all event details');
 
       // Prepare Clarity values
       const clarityArgs = [
@@ -319,33 +300,26 @@ export default function UpdateEventDetails({
         uintCV(timestamp)
       ];
 
-      // Serialize to hex strings
-      const serializedArgs = clarityArgs.map(arg => {
-        const serialized = serializeCV(arg);
-        return `0x${Buffer.from(serialized).toString('hex')}`;
-      });
-
-
-
-      const response = await provider.request('stx_callContract', {
-        contract: `${contractAddress}.${contractName}`,
+      const response = await callContractFunction({
+        contractAddress,
+        contractName,
         functionName: 'update-all-event-details',
-        functionArgs: serializedArgs,
-        network: 'testnet',
-        postConditionMode: 'allow',
+        functionArgs: clarityArgs,
+        onFinish: (data: any) => {
+          console.log('✅ Batch update successful:', data);
+          toast({
+            title: "Batch Update Submitted! 🎉",
+            description: (
+              <div className="space-y-2">
+                <p>All event details updated in one transaction</p>
+                <p className="text-xs font-mono break-all">{data.txId}</p>
+              </div>
+            ),
+          });
+        }
       });
 
-      if (response.txId) {
-        toast({
-          title: "Batch Update Submitted! 🎉",
-          description: (
-            <div className="space-y-2">
-              <p>All event details updated in one transaction</p>
-              <p className="text-xs font-mono break-all">{response.txId}</p>
-            </div>
-          ),
-        });
-      }
+      console.log('✅ Batch update response:', response);
     } catch (error: any) {
       console.error('❌ Batch update error:', error);
       console.error('Error details:', JSON.stringify(error, null, 2));
