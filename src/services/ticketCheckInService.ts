@@ -49,52 +49,58 @@ export interface TicketValidation {
 export interface CheckInPointData {
   contractAddress: string;
   contractName: string;
-  eventId: number;
 }
 
 export function parseCheckInPointQR(qrData: string): CheckInPointData | null {
   try {
-    if (!qrData.startsWith('checkin:')) {
+    // Sanitize input: remove URL prefixes that scanners might add
+    let cleanData = qrData.trim();
+    cleanData = cleanData.replace(/^(https?:\/\/|http:\/\/)/, '');
+
+    console.log('🔍 [Parser] Original:', qrData);
+    console.log('🔍 [Parser] Cleaned:', cleanData);
+
+    if (!cleanData.startsWith('checkin:')) {
+      console.log('❌ [Parser] Does not start with checkin:');
       return null;
     }
 
-    const parts = qrData.substring(8).split(':');
-    if (parts.length !== 2) {
-      return null;
-    }
+    // Remove "checkin:" prefix
+    const afterPrefix = cleanData.substring(8);
 
-    const [contractId, eventIdStr] = parts;
+    // Split by ':' and take only first part (ignore any trailing :undefined)
+    const contractId = afterPrefix.split(':')[0];
+
+    console.log('🔍 [Parser] Contract ID:', contractId);
+
     const [contractAddress, contractName] = contractId.split('.');
 
     if (!contractAddress || !contractName) {
+      console.log('❌ [Parser] Invalid format:', { contractAddress, contractName });
       return null;
     }
 
-    const eventId = parseInt(eventIdStr);
-    if (isNaN(eventId)) {
-      return null;
-    }
+    console.log('✅ [Parser] Success:', { contractAddress, contractName });
 
     return {
       contractAddress,
       contractName,
-      eventId,
     };
   } catch (error) {
-    console.error('❌ Error parsing check-in point QR:', error);
+    console.error('❌ [Parser] Error:', error);
     return null;
   }
 }
 
 /**
  * Generate check-in point QR data (for Event Organizer)
+ * Format: checkin:CONTRACT_ADDRESS.CONTRACT_NAME
  */
 export function generateCheckInPointQR(
   contractAddress: string,
-  contractName: string,
-  eventId: number
+  contractName: string
 ): string {
-  return `checkin:${contractAddress}.${contractName}:${eventId}`;
+  return `checkin:${contractAddress}.${contractName}`;
 }
 
 /**
