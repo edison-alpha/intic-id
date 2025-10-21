@@ -5,7 +5,7 @@
 
 import { callReadOnlyFunction, cvToValue, uintCV } from '@stacks/transactions';
 import { StacksTestnet, StacksMainnet } from '@stacks/network';
-import { getEventMetadataFromContract } from './nftFetcher';
+import { getEventMetadataFromContract, fetchNFTMintTransaction } from './nftFetcher';
 
 const NETWORK = import.meta.env.VITE_STACKS_NETWORK || 'testnet';
 const network = NETWORK === 'mainnet' ? new StacksMainnet() : new StacksTestnet();
@@ -29,7 +29,8 @@ export interface TicketDetail {
 
   // NFT Info
   owner: string;
-  status: 'active' | 'used';
+  status: 'active' | 'used' | 'expired';
+  mintTxId?: string; // Transaction hash for Hiro Explorer
 
   // Purchase Info
   purchasePrice: string;
@@ -173,9 +174,44 @@ export async function getTicketDetail(
     }
 
     // Step 5: Determine status
-    const status = metadata.eventDate && new Date(metadata.eventDate) > new Date()
-      ? 'active'
-      : 'used';
+    let status: 'active' | 'used' | 'expired' = 'active';
+
+    if (metadata.eventDate) {
+      const eventDate = new Date(metadata.eventDate);
+      const now = new Date();
+      const gracePeriodHours = 2; // Grace period after event starts
+      const eventEndTime = new Date(eventDate.getTime() + (gracePeriodHours * 60 * 60 * 1000));
+
+      if (now > eventEndTime) {
+        // Event has passed (including grace period)
+        status = 'expired';
+      } else if (now > eventDate) {
+        // Event is ongoing (within grace period)
+        status = 'active';
+      }
+    }
+
+    // Check if ticket was used via blockchain
+    try {
+      const ticketResult = await callReadOnlyFunction({
+        contractAddress,
+        contractName,
+        functionName: 'get-ticket',
+        functionArgs: [uintCV(tokenId)],
+        senderAddress: contractAddress,
+        network,
+      });
+
+      const ticketData = cvToValue(ticketResult);
+      if (ticketData && ticketData.value) {
+        const isUsed = ticketData.value['is-used']?.value || false;
+        if (isUsed) {
+          status = 'used';
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Could not check ticket usage status:', err);
+    }
 
     // Step 6: Format purchase date
     const purchaseDate = new Date().toLocaleDateString('en-US', {
@@ -184,7 +220,18 @@ export async function getTicketDetail(
       day: 'numeric'
     });
 
-    // Step 7: Build ticket detail
+    // Step 7: Fetch mint transaction
+    let mintTxId = '';
+    try {
+      const contractId = `${contractAddress}.${contractName}`;
+      const txId = await fetchNFTMintTransaction(contractId, tokenId);
+      mintTxId = txId || '';
+      console.log(`  🔗 Mint TX: ${mintTxId || 'Not found'}`);
+    } catch (err) {
+      console.warn('⚠️ Could not fetch mint transaction:', err);
+    }
+
+    // Step 8: Build ticket detail
     const ticketDetail: TicketDetail = {
       id: ticketId,
       tokenId,
@@ -202,6 +249,7 @@ export async function getTicketDetail(
 
       owner: owner || userAddress,
       status,
+      mintTxId: mintTxId || undefined,
 
       purchasePrice: `${metadata.priceFormatted} STX`,
       purchaseDate,

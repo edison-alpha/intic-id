@@ -12,6 +12,7 @@ import {
   Hash,
   Eye
 } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
 import NFTMetadataViewer from "@/components/NFTMetadataViewer";
 import { getTicketDetail, TicketDetail as TicketDetailType } from "@/services/ticketDetailService";
@@ -156,70 +157,105 @@ const TicketDetail = () => {
               >
                 <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent" />
                 <div className={`absolute top-4 right-4 px-3 py-1 text-white text-xs font-bold rounded-full ${
-                  ticket.status === 'active' ? 'bg-green-500' : 'bg-gray-500'
+                  ticket.status === 'active' ? 'bg-green-500' : ticket.status === 'used' ? 'bg-gray-500' : 'bg-orange-500'
                 }`}>
                   {ticket.status.toUpperCase()}
                 </div>
               </div>
 
-              <div className="p-6">
-                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{ticket.eventName}</h1>
-                <p className="text-gray-400 mb-6">{ticket.ticketNumber}</p>
-
-                {/* QR Code */}
-                <div className="bg-[#0A0A0A] border border-gray-800 rounded-2xl p-8 mb-6">
-                  <div className="max-w-xs mx-auto">
-                    <div className="aspect-square bg-white rounded-xl p-6 mb-4">
-                      {/* Placeholder QR Code */}
-                      <div className="w-full h-full bg-gradient-to-br from-[#FE5C02] to-purple-600 rounded-lg flex items-center justify-center">
-                        <p className="text-white font-bold text-4xl">QR</p>
-                      </div>
-                    </div>
-                    <p className="text-center text-gray-400 text-sm">
-                      Scan this QR code at the event entrance
-                    </p>
+              <div className="p-6 space-y-6">
+                {/* Event Title & Badge */}
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-white mb-3">{ticket.eventName}</h1>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="px-3 py-1.5 bg-gradient-to-r from-[#FE5C02] to-purple-600 text-white text-xs font-bold rounded-full">
+                      {ticket.status.toUpperCase()}
+                    </span>
+                    <span className="text-gray-400 text-sm">{ticket.ticketNumber}</span>
                   </div>
                 </div>
 
-                {/* Event Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-[#0A0A0A] rounded-lg">
-                      <Calendar className="w-5 h-5 text-[#FE5C02]" />
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-xs mb-1">Date & Time</p>
-                      <p className="text-white font-medium">{ticket.eventDate}</p>
-                      <p className="text-gray-300 text-sm">{ticket.eventTime}</p>
-                    </div>
+                {/* QR Code - Clean Design */}
+                <div className="bg-gradient-to-br from-[#FE5C02]/5 to-purple-600/5 border border-gray-800/50 rounded-2xl p-6">
+                  <div className="text-center mb-4">
+                    <h3 className="text-white font-semibold mb-1">Your Digital Pass</h3>
+                    <p className="text-gray-400 text-xs">Blockchain-Verified Ticket</p>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-[#0A0A0A] rounded-lg">
-                      <MapPin className="w-5 h-5 text-[#FE5C02]" />
+                  <div className="max-w-xs mx-auto">
+                    <div className="bg-white rounded-2xl p-6 shadow-lg flex items-center justify-center mb-4">
+                      {ticket.mintTxId ? (
+                        <QRCodeCanvas
+                          value={`https://explorer.hiro.so/txid/${ticket.mintTxId}?chain=testnet`}
+                          size={220}
+                          level="H"
+                          includeMargin={false}
+                        />
+                      ) : (
+                        <div className="w-[220px] h-[220px] bg-gradient-to-br from-[#FE5C02] to-purple-600 rounded-xl flex items-center justify-center">
+                          <Shield className="w-24 h-24 text-white/20" />
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-gray-400 text-xs mb-1">Location</p>
-                      <p className="text-white font-medium">{ticket.location}</p>
-                      <p className="text-gray-300 text-sm">{ticket.fullAddress}</p>
+
+                    {ticket.mintTxId ? (
+                      <div className="text-center space-y-2">
+                        <p className="text-gray-400 text-xs">Scan to view on blockchain</p>
+                        <a
+                          href={`https://explorer.hiro.so/txid/${ticket.mintTxId}?chain=testnet`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-[#FE5C02]/10 hover:bg-[#FE5C02]/20 border border-[#FE5C02]/20 text-[#FE5C02] text-sm font-medium rounded-xl transition-all"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          View Transaction
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-center text-gray-500 text-xs">Present at event entrance</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Event Details Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-[#0A0A0A] border border-gray-800/50 rounded-xl p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-[#FE5C02]/10 rounded-lg">
+                        <Calendar className="w-5 h-5 text-[#FE5C02]" />
+                      </div>
+                      <p className="text-gray-400 text-xs font-medium">Date & Time</p>
                     </div>
+                    <p className="text-white font-semibold ml-11">{ticket.eventDate}</p>
+                    <p className="text-gray-300 text-sm ml-11">{ticket.eventTime}</p>
+                  </div>
+
+                  <div className="bg-[#0A0A0A] border border-gray-800/50 rounded-xl p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-purple-600/10 rounded-lg">
+                        <MapPin className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <p className="text-gray-400 text-xs font-medium">Location</p>
+                    </div>
+                    <p className="text-white font-semibold ml-11">{ticket.location}</p>
+                    <p className="text-gray-300 text-sm ml-11 truncate">{ticket.fullAddress}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Actions */}
+            {/* Actions - Improved Design */}
             <div className="grid grid-cols-2 gap-4">
               <button
                 onClick={handleDownload}
-                className="flex items-center justify-center gap-2 px-6 py-4 bg-[#1A1A1A] border border-gray-800 hover:border-[#FE5C02] text-white font-semibold rounded-xl transition-all"
+                className="flex items-center justify-center gap-2 px-6 py-4 bg-[#0A0A0A] border border-gray-800 hover:border-[#FE5C02] hover:bg-gray-900 text-white font-semibold rounded-xl transition-all hover:scale-105"
               >
                 <Download className="w-5 h-5" />
                 Download
               </button>
               <button
                 onClick={handleShare}
-                className="flex items-center justify-center gap-2 px-6 py-4 bg-[#1A1A1A] border border-gray-800 hover:border-[#FE5C02] text-white font-semibold rounded-xl transition-all"
+                className="flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-[#FE5C02] to-purple-600 hover:from-[#E54F02] hover:to-purple-700 text-white font-semibold rounded-xl transition-all hover:scale-105"
               >
                 <Share2 className="w-5 h-5" />
                 Share
@@ -293,7 +329,11 @@ const TicketDetail = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400 text-sm">Status</span>
-                  <span className={`text-sm font-medium ${ticket.status === 'active' ? 'text-green-500' : 'text-gray-500'}`}>
+                  <span className={`text-sm font-medium ${
+                    ticket.status === 'active' ? 'text-green-500' :
+                    ticket.status === 'used' ? 'text-gray-500' :
+                    'text-orange-500'
+                  }`}>
                     {ticket.status.toUpperCase()}
                   </span>
                 </div>

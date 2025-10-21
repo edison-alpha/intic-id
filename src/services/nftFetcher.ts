@@ -267,6 +267,150 @@ export async function getEventMetadataFromContract(
 }
 
 /**
+ * Fetch NFT mint transaction from Hiro API
+ * This gets the transaction hash when the NFT was minted
+ */
+export async function fetchNFTMintTransaction(
+  contractId: string,
+  tokenId: number
+): Promise<string | null> {
+  try {
+    const [contractAddress, contractName] = contractId.split('.');
+
+    console.log(`🔍 Fetching mint TX for ${contractId} token #${tokenId}`);
+
+    // Try multiple asset identifier formats
+    const possibleIdentifiers = [
+      `${contractAddress}.${contractName}::ticket`,
+      `${contractAddress}.${contractName}::nft-ticket`,
+      `${contractAddress}.${contractName}::event-ticket`,
+    ];
+
+    // Method 1: Try NFT mints endpoint with different identifiers
+    for (const assetIdentifier of possibleIdentifiers) {
+      try {
+        const url = `${HIRO_API}/extended/v1/tokens/nft/mints?asset_identifier=${encodeURIComponent(assetIdentifier)}&limit=200`;
+        console.log(`  Trying: ${url}`);
+
+        const response = await fetch(url);
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        console.log(`  Found ${data.results?.length || 0} mint events`);
+
+        if (data.results && Array.isArray(data.results)) {
+          for (const event of data.results) {
+            const eventTokenId = parseInt(event.value?.repr?.replace('u', '') || '0');
+            console.log(`    Event token: ${eventTokenId}, looking for: ${tokenId}`);
+            if (eventTokenId === tokenId) {
+              console.log(`  ✅ Found mint TX: ${event.tx_id}`);
+              return event.tx_id || null;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`  ⚠️ Error with identifier ${assetIdentifier}:`, err);
+      }
+    }
+
+    // Method 2: Use NFT history endpoint (more reliable)
+    try {
+      const historyUrl = `${HIRO_API}/extended/v1/address/${contractAddress}/nft_events?limit=200`;
+      console.log(`  Trying history: ${historyUrl}`);
+
+      const historyResponse = await fetch(historyUrl);
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        console.log(`  Found ${historyData.nft_events?.length || 0} NFT events`);
+
+        if (historyData.nft_events && Array.isArray(historyData.nft_events)) {
+          for (const event of historyData.nft_events) {
+            // Check if this is a mint event for our contract and token
+            if (event.asset_identifier?.includes(contractName)) {
+              const eventTokenId = parseInt(event.value?.repr?.replace('u', '') || '0');
+              console.log(`    History event token: ${eventTokenId}, type: ${event.event_type}`);
+
+              if (eventTokenId === tokenId && event.event_type === 'mint') {
+                console.log(`  ✅ Found mint TX from history: ${event.tx_id}`);
+                return event.tx_id || null;
+              }
+            }
+          }
+        }
+      } else {
+        console.log(`  ⚠️ History endpoint returned ${historyResponse.status}, skipping...`);
+      }
+    } catch (err) {
+      console.warn('  ⚠️ Error fetching NFT history:', err);
+    }
+
+    console.log('  Method 2 failed, trying Method 3...');
+
+    // Method 3: Get contract transactions and find mint-ticket calls
+    try {
+      const txUrl = `${HIRO_API}/extended/v1/address/${contractAddress}.${contractName}/transactions?limit=200`;
+      console.log(`  Trying contract transactions: ${txUrl}`);
+
+      const txResponse = await fetch(txUrl);
+      console.log(`  Contract transactions response status: ${txResponse.status}`);
+
+      if (txResponse.ok) {
+        const txData = await txResponse.json();
+        console.log(`  Found ${txData.results?.length || 0} transactions`);
+
+        if (txData.results && Array.isArray(txData.results)) {
+          // Log all transactions to debug
+          console.log(`  Transactions for debugging:`, txData.results.map((tx: any) => ({
+            tx_id: tx.tx_id,
+            type: tx.tx_type,
+            function: tx.contract_call?.function_name,
+            status: tx.tx_status
+          })));
+
+          for (const tx of txData.results) {
+            // Check if this is a contract call transaction
+            if (tx.tx_type === 'contract_call' &&
+                tx.contract_call?.function_name === 'mint-ticket' &&
+                tx.tx_status === 'success') {
+
+              console.log(`    Checking mint-ticket TX: ${tx.tx_id}`);
+              console.log(`    Events:`, tx.events);
+
+              // Check events in this transaction to find the minted token ID
+              if (tx.events && Array.isArray(tx.events)) {
+                for (const event of tx.events) {
+                  if (event.event_type === 'non_fungible_token_asset' &&
+                      event.asset?.asset_event_type === 'mint') {
+                    const mintedTokenId = parseInt(event.asset?.value?.repr?.replace('u', '') || '0');
+                    console.log(`    TX ${tx.tx_id}: minted token ${mintedTokenId}`);
+
+                    if (mintedTokenId === tokenId) {
+                      console.log(`  ✅ Found mint TX from contract transactions: ${tx.tx_id}`);
+                      return tx.tx_id || null;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        console.log(`  ⚠️ Contract transactions endpoint returned ${txResponse.status}`);
+      }
+    } catch (err) {
+      console.warn('  ⚠️ Error fetching contract transactions:', err);
+    }
+
+    console.warn(`⚠️ Mint transaction not found for token ${tokenId} after trying all methods`);
+    return null;
+
+  } catch (error) {
+    console.error(`❌ Error fetching mint transaction:`, error);
+    return null;
+  }
+}
+
+/**
  * Main function: Get user's tickets with full metadata
  * OpenSea/Rainbow style - direct indexer query
  */
@@ -326,6 +470,15 @@ export async function getUserTicketsFromIndexer(userAddress: string) {
             console.warn('    ⚠️ Error formatting date:', err);
           }
 
+          // Try to fetch mint transaction for this NFT
+          let mintTxId = '';
+          try {
+            const mintTx = await fetchNFTMintTransaction(contractId, nft.tokenId);
+            mintTxId = mintTx || '';
+          } catch (err) {
+            console.warn(`    ⚠️ Could not fetch mint tx for token ${nft.tokenId}`);
+          }
+
           const ticket = {
             id: `${contractId}-${nft.tokenId}`,
             tokenId: nft.tokenId,
@@ -342,6 +495,7 @@ export async function getUserTicketsFromIndexer(userAddress: string) {
             quantity: 1,
             category: String(metadata.category || 'General'),
             price: String(metadata.priceFormatted || '0'),
+            mintTxId: mintTxId, // Transaction hash for Hiro Explorer
           };
 
           tickets.push(ticket);

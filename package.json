@@ -60,11 +60,13 @@
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
+    "html5-qrcode": "^2.3.8",
     "input-otp": "^1.2.4",
     "lottie-react": "^2.4.0",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
     "node-fetch": "^3.3.2",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -78,6 +80,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@21st-extension/toolbar": "^0.5.14",
     "@eslint/js": "^9.9.0",
     "@tailwindcss/postcss": "^4.1.14",
     "@tailwindcss/typography": "^0.5.0-alpha.3",

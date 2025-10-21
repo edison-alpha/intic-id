@@ -17,6 +17,7 @@ import TicketDetail from "./pages/TicketDetail";
 import Profile from "./pages/Profile";
 import CreateTicket from "./pages/CreateTicket";
 import Settings from "./pages/Settings";
+import CheckIn from "./pages/CheckIn";
 import { AuthCallback } from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 import { TestPinata } from "./pages/TestPinata";
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/app/ticket/:id" element={<TicketDetail />} />
               <Route path="/app/profile" element={<Profile />} />
               <Route path="/app/settings" element={<Settings />} />
+              <Route path="/app/check-in" element={<CheckIn />} />
               <Route path="/create-ticket" element={<CreateTicket />} />
               <Route path="/test-pinata" element={<TestPinata />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

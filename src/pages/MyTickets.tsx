@@ -40,7 +40,13 @@ const MyTickets = () => {
       eventDate: `${ticket.eventDate} at ${ticket.eventTime}`,
       ticketType: `${ticket.category} (${ticket.quantity}x)`,
       holderName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : "Unknown",
-      seatNumber: `Token #${ticket.tokenId}`
+      seatNumber: `Token #${ticket.tokenId}`,
+      mintTxId: ticket.mintTxId || '', // Transaction hash for Hiro Explorer
+      contractId: ticket.contractId,
+      tokenId: ticket.tokenId,
+      location: ticket.location,
+      price: ticket.price,
+      category: ticket.category
     });
     setIsQRModalOpen(true);
   };
@@ -186,7 +192,8 @@ const MyTickets = () => {
 
   const statusColors = {
     active: "bg-green-500/10 text-green-500 border-green-500/20",
-    used: "bg-gray-500/10 text-gray-500 border-gray-500/20"
+    used: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+    expired: "bg-orange-500/10 text-orange-500 border-orange-500/20"
   };
 
   return (
@@ -269,6 +276,7 @@ const MyTickets = () => {
               <option value="all">All Tickets</option>
               <option value="active">Active</option>
               <option value="used">Used</option>
+              <option value="expired">Expired</option>
             </select>
           </div>
         </div>

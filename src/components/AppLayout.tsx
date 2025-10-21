@@ -14,7 +14,8 @@ import {
   Search,
   TrendingUp,
   Vote,
-  Copy
+  Copy,
+  ScanLine
 } from "lucide-react";
 import { toast } from "sonner";
 import inticDarkSvg from '../assets/inticdark.svg';
@@ -47,6 +48,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const menuItems = [
     { path: "/app", icon: Home, label: "Browse Events", exact: true },
     { path: "/app/my-tickets", icon: Ticket, label: "My Tickets" },
+    { path: "/app/check-in", icon: ScanLine, label: "Check-In" },
     { path: "/app/staking", icon: TrendingUp, label: "Staking" },
     { path: "/app/governance", icon: Vote, label: "Governance" },
     { path: "/app/portofolio", icon: LayoutDashboard, label: "Portofolio" }
