@@ -6,8 +6,11 @@ declare global {
   interface Window {
     LeatherProvider?: any;
     HiroWalletProvider?: any;
-    XverseProvider?: any;
     btc?: any;
+    XverseProviders?: {
+      StacksProvider?: any;
+      BitcoinProvider?: any;
+    };
   }
 }
 
@@ -27,8 +30,6 @@ interface WalletContextType {
     functionArgs: any[];
     onFinish?: (data: any) => void;
   }) => Promise<any>;
-  isMobile: boolean;
-  connectMobileWallet: (walletType: 'xverse' | 'leather-mobile') => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -48,110 +49,6 @@ interface WalletProviderProps {
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [wallet, setWallet] = useState<{ address: string; publicKey?: string } | null>(null);
   const [isWalletConnected, setIsWalletConnected] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  // Handle mobile wallet callback
-  useEffect(() => {
-    const handleMobileWalletCallback = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const address = urlParams.get('address');
-      const publicKey = urlParams.get('publicKey');
-
-      if (address) {
-        const walletData: { address: string; publicKey?: string } = {
-          address
-        };
-
-        if (publicKey) {
-          walletData.publicKey = publicKey;
-        }
-
-        setWallet(walletData);
-        setIsWalletConnected(true);
-        localStorage.setItem('wallet-address', JSON.stringify(walletData));
-
-        // Clean up URL
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, newUrl);
-
-        console.log('✅ Mobile wallet connected:', walletData);
-      }
-    };
-
-    handleMobileWalletCallback();
-  }, []);
-
-  // Detect mobile device and Xverse
-  useEffect(() => {
-    const checkIsMobile = () => {
-      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
-      const mobileRegex = /android|avantgo|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows (ce|phone)|xda|xiino/i;
-      setIsMobile(mobileRegex.test(userAgent) || window.innerWidth < 768);
-    };
-
-    checkIsMobile();
-    window.addEventListener('resize', checkIsMobile);
-    return () => window.removeEventListener('resize', checkIsMobile);
-  }, []);
-
-  // Check for Xverse in-app browser
-  useEffect(() => {
-    const checkXverseInApp = () => {
-      // Check if we're in Xverse's webview
-      const isXverseWebview = navigator.userAgent.includes('Xverse') ||
-                             window.location.search.includes('xverse') ||
-                             (window as any).webkit?.messageHandlers?.xverse;
-
-      if (isXverseWebview) {
-        console.log('📱 Detected Xverse in-app browser');
-
-        // Try to inject Xverse provider if not already available
-        if (typeof window !== 'undefined' && !(window as any).XverseProvider) {
-          (window as any).XverseProvider = {
-            request: async (method: string, params?: any) => {
-              return new Promise((resolve, reject) => {
-                // Use Xverse's postMessage API
-                const messageId = Date.now().toString();
-
-                const message = {
-                  id: messageId,
-                  method,
-                  params: params || {}
-                };
-
-                const handleResponse = (event: MessageEvent) => {
-                  if (event.data && event.data.id === messageId) {
-                    window.removeEventListener('message', handleResponse);
-                    if (event.data.error) {
-                      reject(new Error(event.data.error));
-                    } else {
-                      resolve(event.data.result);
-                    }
-                  }
-                };
-
-                window.addEventListener('message', handleResponse);
-
-                // Send message to Xverse
-                if ((window as any).webkit?.messageHandlers?.xverse) {
-                  (window as any).webkit.messageHandlers.xverse.postMessage(message);
-                } else {
-                  window.parent.postMessage(message, '*');
-                }
-
-                // Timeout after 30 seconds
-                setTimeout(() => {
-                  window.removeEventListener('message', handleResponse);
-                  reject(new Error('Xverse connection timeout'));
-                }, 30000);
-              });
-            }
-          };
-        }
-      }
-    };
-
-    checkXverseInApp();
-  }, []);
 
   useEffect(() => {
     // Check for stored wallet connection
@@ -170,128 +67,37 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   const connectWallet = async () => {
     try {
-      // Check if we're on mobile first
-      if (isMobile) {
-        // On mobile, try Xverse in-app browser API first
-        if (typeof window !== 'undefined' && window.XverseProvider) {
-          try {
-            const response = await window.XverseProvider.request('getAddresses');
-            if (response && response.result && response.result.addresses) {
-              const addresses = response.result.addresses;
-              const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
+      // Try Xverse Wallet first (Mobile & Desktop support)
+      if (typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
+        try {
+          const response = await window.XverseProviders.StacksProvider.request('getAddresses', {
+            purposes: ['payment'],
+          });
 
-              if (stxAddress) {
-                const walletData = {
-                  address: stxAddress.address,
-                  publicKey: stxAddress.publicKey
-                };
+          if (response && response.result && response.result.addresses) {
+            const addresses = response.result.addresses;
+            const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
 
-                setWallet(walletData);
-                setIsWalletConnected(true);
-                localStorage.setItem('wallet-address', JSON.stringify(walletData));
-                return;
-              }
-            }
-          } catch (error) {
-            console.log('Xverse in-app API not available, trying other methods');
-          }
-        }
-
-        // Check if we're in Xverse webview (when accessed via explore)
-        const isXverseWebview = navigator.userAgent.includes('Xverse') ||
-                               window.location.search.includes('xverse') ||
-                               (window as any).webkit?.messageHandlers?.xverse;
-
-        if (isXverseWebview) {
-          console.log('📱 Detected Xverse webview, trying direct connection...');
-          try {
-            // Try using the injected XverseProvider first
-            if ((window as any).XverseProvider) {
-              const response = await (window as any).XverseProvider.request('getAddresses');
-              console.log('📱 Xverse provider response:', response);
-
-              if (response && response.result && response.result.addresses) {
-                const addresses = response.result.addresses;
-                const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
-
-                if (stxAddress) {
-                  const walletData = {
-                    address: stxAddress.address,
-                    publicKey: stxAddress.publicKey
-                  };
-
-                  setWallet(walletData);
-                  setIsWalletConnected(true);
-                  localStorage.setItem('wallet-address', JSON.stringify(walletData));
-                  console.log('✅ Connected via Xverse webview');
-                  return;
-                }
-              }
-            }
-
-            // Try direct postMessage to Xverse
-            const response = await new Promise((resolve, reject) => {
-              const messageId = 'xverse_connect_' + Date.now();
-
-              const message = {
-                id: messageId,
-                method: 'getAddresses',
-                params: {}
+            if (stxAddress) {
+              const walletData = {
+                address: stxAddress.address,
+                publicKey: stxAddress.publicKey
               };
 
-              const handleResponse = (event: MessageEvent) => {
-                if (event.data && event.data.id === messageId) {
-                  window.removeEventListener('message', handleResponse);
-                  resolve(event.data);
-                }
-              };
-
-              window.addEventListener('message', handleResponse);
-
-              // Send to Xverse
-              if ((window as any).webkit?.messageHandlers?.xverse) {
-                (window as any).webkit.messageHandlers.xverse.postMessage(message);
-              } else {
-                window.parent.postMessage(message, '*');
-              }
-
-              setTimeout(() => {
-                window.removeEventListener('message', handleResponse);
-                reject(new Error('Xverse connection timeout'));
-              }, 10000);
-            });
-
-            console.log('📱 Xverse direct response:', response);
-
-            // Process the response similar to extension
-            const responseData = response as any;
-            if (responseData && responseData.result && responseData.result.addresses) {
-              const addresses = responseData.result.addresses;
-              const stxAddress = addresses.find((addr: any) => addr.symbol === 'STX');
-
-              if (stxAddress) {
-                const walletData = {
-                  address: stxAddress.address,
-                  publicKey: stxAddress.publicKey
-                };
-
-                setWallet(walletData);
-                setIsWalletConnected(true);
-                localStorage.setItem('wallet-address', JSON.stringify(walletData));
-                console.log('✅ Connected via Xverse webview');
-                return;
-              }
+              setWallet(walletData);
+              setIsWalletConnected(true);
+              localStorage.setItem('wallet-address', JSON.stringify(walletData));
+              localStorage.setItem('wallet-type', 'xverse');
+              return;
             }
-          } catch (error) {
-            console.log('❌ Xverse webview connection failed:', error);
           }
+        } catch (xverseError) {
+          console.error('Xverse connection error:', xverseError);
+          // Continue to try other wallets
         }
-
-        // If Xverse in-app API fails, show mobile wallet options
-        throw new Error('MOBILE_WALLET_REQUIRED');
       }
 
-      // Desktop: Try LeatherProvider first (new API)
+      // Try LeatherProvider (Desktop)
       if (typeof window !== 'undefined' && window.LeatherProvider) {
         const response = await window.LeatherProvider.request('getAddresses');
 
@@ -308,12 +114,13 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             setWallet(walletData);
             setIsWalletConnected(true);
             localStorage.setItem('wallet-address', JSON.stringify(walletData));
+            localStorage.setItem('wallet-type', 'leather');
             return;
           }
         }
       }
 
-      // Try Hiro Wallet
+      // Try Hiro Wallet (Desktop)
       if (typeof window !== 'undefined' && window.HiroWalletProvider) {
         const response = await window.HiroWalletProvider.request('getAddresses');
 
@@ -330,6 +137,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             setWallet(walletData);
             setIsWalletConnected(true);
             localStorage.setItem('wallet-address', JSON.stringify(walletData));
+            localStorage.setItem('wallet-type', 'hiro');
             return;
           }
         }
@@ -337,10 +145,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
       // Fallback: Show instruction to install wallet
       throw new Error(
-        'Please install Hiro Wallet or Leather wallet extension.\n\n' +
+        'Please install a Stacks wallet.\n\n' +
         'Download from:\n' +
-        '• Hiro Wallet: https://wallet.hiro.so/wallet/install-web\n' +
-        '• Leather: https://leather.io/install-extension'
+        '• Xverse (Mobile & Desktop): https://xverse.app\n' +
+        '• Hiro Wallet (Desktop): https://wallet.hiro.so/wallet/install-web\n' +
+        '• Leather (Desktop): https://leather.io/install-extension'
       );
     } catch (error) {
       console.error('Error connecting wallet:', error);
@@ -375,21 +184,24 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     try {
       let provider = null;
+      const walletType = localStorage.getItem('wallet-type');
 
-      // Try XverseProvider first (for mobile)
-      if (typeof window !== 'undefined' && window.XverseProvider) {
-        provider = window.XverseProvider;
+      // Try Xverse first if it was the connected wallet
+      if (walletType === 'xverse' && typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
+        provider = window.XverseProviders.StacksProvider;
       } else if (typeof window !== 'undefined' && window.LeatherProvider) {
         provider = window.LeatherProvider;
       } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
         provider = window.HiroWalletProvider;
+      } else if (typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
+        provider = window.XverseProviders.StacksProvider;
       }
 
       if (!provider) {
-        throw new Error('Wallet extension not found. Please make sure Hiro Wallet, Leather, or Xverse is installed and unlocked.');
+        throw new Error('Wallet extension not found. Please make sure your wallet is installed and unlocked.');
       }
 
-      // Use stx_transferStx method (correct Leather API)
+      // Use stx_transferStx method
       // Amount should be in microSTX as a string
       const amountInMicroSTX = (amount * 1000000).toString();
 
@@ -441,18 +253,21 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     try {
       let provider = null;
+      const walletType = localStorage.getItem('wallet-type');
 
-      // Try XverseProvider first (for mobile)
-      if (typeof window !== 'undefined' && window.XverseProvider) {
-        provider = window.XverseProvider;
+      // Try to use the wallet that was connected
+      if (walletType === 'xverse' && typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
+        provider = window.XverseProviders.StacksProvider;
       } else if (typeof window !== 'undefined' && window.LeatherProvider) {
         provider = window.LeatherProvider;
       } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
         provider = window.HiroWalletProvider;
+      } else if (typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
+        provider = window.XverseProviders.StacksProvider;
       }
 
       if (!provider) {
-        throw new Error('Wallet extension not found. Please make sure Hiro Wallet or Leather is installed and unlocked.');
+        throw new Error('Wallet extension not found. Please make sure your wallet is installed and unlocked.');
       }
 
 
@@ -654,14 +469,19 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
 
 
-      // Get wallet provider (same as MintNFTButton)
+      // Get wallet provider
       let provider = null;
-      if (typeof window !== 'undefined' && window.XverseProvider) {
-        provider = window.XverseProvider;
+      const walletType = localStorage.getItem('wallet-type');
+
+      // Try to use the wallet that was connected
+      if (walletType === 'xverse' && typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
+        provider = window.XverseProviders.StacksProvider;
       } else if (typeof window !== 'undefined' && window.LeatherProvider) {
         provider = window.LeatherProvider;
       } else if (typeof window !== 'undefined' && window.HiroWalletProvider) {
         provider = window.HiroWalletProvider;
+      } else if (typeof window !== 'undefined' && window.XverseProviders?.StacksProvider) {
+        provider = window.XverseProviders.StacksProvider;
       }
 
       if (!provider) {
@@ -710,44 +530,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   };
 
-  const connectMobileWallet = async (walletType: 'xverse' | 'leather-mobile') => {
-    try {
-      const callbackUrl = encodeURIComponent(`${window.location.origin}?wallet=${walletType}`);
-
-      if (walletType === 'xverse') {
-        // Xverse deep linking with callback
-        const xverseUrl = `xverse://connect?callback=${callbackUrl}&network=testnet&dapp=intic`;
-        console.log('🔗 Opening Xverse:', xverseUrl);
-
-        // Try deep linking first
-        window.location.href = xverseUrl;
-
-        // Show instructions for manual connection
-        setTimeout(() => {
-          if (!isWalletConnected) {
-            alert(`Xverse tidak terdeteksi. Silakan:\n\n1. Install Xverse dari App Store/Play Store\n2. Buka Xverse dan scan QR code\n3. Atau buka link ini di Xverse: ${xverseUrl}`);
-          }
-        }, 3000);
-
-      } else if (walletType === 'leather-mobile') {
-        // Leather mobile deep linking
-        const leatherUrl = `leather://connect?callback=${callbackUrl}&network=testnet`;
-        console.log('🔗 Opening Leather:', leatherUrl);
-
-        window.location.href = leatherUrl;
-
-        setTimeout(() => {
-          if (!isWalletConnected) {
-            alert(`Leather mobile tidak terdeteksi. Silakan:\n\n1. Install Leather dari App Store/Play Store\n2. Buka Leather dan scan QR code\n3. Atau buka link ini di Leather: ${leatherUrl}`);
-          }
-        }, 3000);
-      }
-    } catch (error) {
-      console.error('❌ Mobile wallet connection failed:', error);
-      throw new Error('Gagal menghubungkan wallet mobile. Silakan coba lagi.');
-    }
-  };
-
   const value: WalletContextType = {
     wallet,
     isWalletConnected,
@@ -758,8 +540,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     deployContract,
     getBalance,
     callContractFunction,
-    isMobile,
-    connectMobileWallet,
   };
 
   return (
