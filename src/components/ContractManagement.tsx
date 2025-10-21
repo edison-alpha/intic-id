@@ -22,7 +22,10 @@ import {
   Hash,
   Calendar,
   MoreVertical,
-  Edit
+  Edit,
+  QrCode,
+  Download,
+  X
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -33,6 +36,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import UpdateEventDetails from './UpdateEventDetails';
+import { QRCodeCanvas } from 'qrcode.react';
+import { generateCheckInPointQR } from '@/services/ticketCheckInService';
 import {
   getTransactionStatus,
   indexAllContractsByAddress,
@@ -102,6 +107,10 @@ export const ContractManagement = () => {
   // Update Event Details modal state
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [contractToUpdate, setContractToUpdate] = useState<any | null>(null);
+
+  // QR Code Check-In modal state
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrContract, setQrContract] = useState<any | null>(null);
 
   // Auto-refresh state (hidden from UI, always enabled)
   // const [isAutoRefreshing, setIsAutoRefreshing] = useState(false); // removed unused
@@ -891,7 +900,18 @@ export const ContractManagement = () => {
                                   <DropdownMenuContent align="end" className="bg-[#1A1A1A] border-gray-700">
                                     <DropdownMenuLabel className="text-white">Actions</DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-gray-700" />
-                                    <DropdownMenuItem 
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setQrContract(contract);
+                                        setShowQRModal(true);
+                                      }}
+                                      className="text-[#FE5C02] hover:bg-[#2A2A2A] cursor-pointer font-semibold"
+                                    >
+                                      <QrCode className="w-4 h-4 mr-2" />
+                                      Check-In QR Code
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator className="bg-gray-700" />
+                                    <DropdownMenuItem
                                       onClick={() => {
                                         setContractToUpdate(contract);
                                         setShowUpdateModal(true);
@@ -901,7 +921,7 @@ export const ContractManagement = () => {
                                       <Edit className="w-4 h-4 mr-2" />
                                       Update Event Details
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem 
+                                    <DropdownMenuItem
                                       onClick={() => setSelectedContract(contract)}
                                       className="text-white hover:bg-[#2A2A2A] cursor-pointer"
                                     >
@@ -909,7 +929,7 @@ export const ContractManagement = () => {
                                       View Details
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="bg-gray-700" />
-                                    <DropdownMenuItem 
+                                    <DropdownMenuItem
                                       onClick={() => window.open(`https://explorer.hiro.so/txid/${contract.txId}?chain=testnet`, '_blank')}
                                       className="text-blue-400 hover:bg-[#2A2A2A] cursor-pointer"
                                     >
@@ -1325,6 +1345,165 @@ export const ContractManagement = () => {
           </Card>
         </div>
       )}
+
+      {/* QR Code Check-In Modal */}
+      {showQRModal && qrContract && (() => {
+        // Debug: Log full contract object
+        console.log('🔍 [QR Modal] Full qrContract object:', qrContract);
+        console.log('🔍 [QR Modal] contractId:', qrContract.contractId);
+        console.log('🔍 [QR Modal] contractName:', qrContract.contractName);
+
+        // Try different ways to get contract info
+        const contractId = qrContract.contractId || `${qrContract.contractAddress}.${qrContract.contractName}`;
+        console.log('🔍 [QR Modal] Resolved contractId:', contractId);
+
+        const [contractAddress, contractName] = contractId?.split('.') || ['', ''];
+
+        console.log('🔍 [QR Modal] Parsed Address:', contractAddress);
+        console.log('🔍 [QR Modal] Parsed Name:', contractName);
+
+        const qrData = contractAddress && contractName
+          ? generateCheckInPointQR(contractAddress, contractName)
+          : '';
+
+        console.log('🔍 [QR Modal] Final QR Data:', qrData);
+
+        // Validate QR data
+        if (!qrData || !qrData.startsWith('checkin:')) {
+          console.error('❌ [QR Modal] Invalid QR data generated!');
+        }
+
+        const nftData = nftTicketData.get(qrContract.contractId);
+
+        const handleDownloadQR = () => {
+          const canvas = document.getElementById('checkin-qr-canvas') as HTMLCanvasElement;
+          if (canvas) {
+            const url = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `checkin-${qrContract.contractName}.png`;
+            link.href = url;
+            link.click();
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
+            <div className="bg-[#1A1A1A] border-2 border-[#FE5C02] rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-[#FE5C02] to-orange-600 p-6 relative">
+                <button
+                  onClick={() => {
+                    setShowQRModal(false);
+                    setQrContract(null);
+                  }}
+                  className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                    <QrCode className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-white">Event Check-In</h2>
+                    <p className="text-white/90">Scan QR to enter event</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* QR Code Content */}
+              <div className="p-8">
+                {/* Event Info */}
+                <div className="mb-6 p-4 bg-[#0A0A0A] rounded-xl border border-gray-800">
+                  <h3 className="text-lg font-bold text-white mb-2">
+                    {nftData?.eventName || qrContract.contractName}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-400">Total Supply</p>
+                      <p className="text-white font-semibold">{nftData?.maxSupply || 'N/A'} tickets</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400">Minted</p>
+                      <p className="text-green-400 font-semibold">{nftData?.mintedCount || 0} tickets</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* QR Code Display */}
+                <div className="bg-white rounded-2xl p-8 mb-6 flex justify-center">
+                  {qrData ? (
+                    <QRCodeCanvas
+                      id="checkin-qr-canvas"
+                      value={qrData}
+                      size={320}
+                      level="H"
+                      includeMargin={true}
+                    />
+                  ) : (
+                    <div className="text-center text-gray-500 py-16">
+                      <AlertCircle className="w-12 h-12 mx-auto mb-2" />
+                      <p>Invalid contract data</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Instructions */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">1</div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">Display this QR at entrance</p>
+                      <p className="text-gray-400 text-xs">Show on screen or print</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                    <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">2</div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">Attendees scan with their app</p>
+                      <p className="text-gray-400 text-xs">Go to Check-In menu → Scan QR</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold">3</div>
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-medium">Auto check-in on blockchain</p>
+                      <p className="text-gray-400 text-xs">Ticket marked as used</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contract Info */}
+                <div className="p-3 bg-[#0A0A0A] rounded-lg mb-6">
+                  <p className="text-gray-500 text-xs mb-1">Contract ID</p>
+                  <p className="text-gray-400 text-xs font-mono break-all">{qrContract.contractId}</p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleDownloadQR}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#FE5C02] to-orange-600 hover:from-[#E54F02] hover:to-orange-700 text-white font-semibold rounded-xl transition-all"
+                  >
+                    <Download className="w-5 h-5" />
+                    Download QR Code
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowQRModal(false);
+                      setQrContract(null);
+                    }}
+                    className="px-6 py-3 bg-[#0A0A0A] border border-gray-800 text-white rounded-xl hover:border-gray-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

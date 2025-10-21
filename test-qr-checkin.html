@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test QR Check-In</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: white;
+    }
+    .container {
+      background: #2a2a2a;
+      padding: 30px;
+      border-radius: 10px;
+      border: 2px solid #fe5c02;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      color: white;
+      border-radius: 5px;
+    }
+    button {
+      background: #fe5c02;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #e54f02;
+    }
+    #qrcode {
+      text-align: center;
+      margin: 20px 0;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+    }
+    .info {
+      background: #0a0a0a;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    .success {
+      color: #4ade80;
+    }
+    .error {
+      color: #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Test QR Check-In Generator</h1>
+    <p>Generate QR code untuk test check-in flow</p>
+
+    <div>
+      <label>Contract Address:</label>
+      <input
+        type="text"
+        id="contractAddress"
+        placeholder="ST1X7MNQF6TKA52PA7JRH99S9KKXH9TY8CSG8AK4C"
+        value="ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM"
+      />
+    </div>
+
+    <div>
+      <label>Contract Name:</label>
+      <input
+        type="text"
+        id="contractName"
+        placeholder="my-event-nft-12345"
+        value="test-event-checkin"
+      />
+    </div>
+
+    <button onclick="generateQR()">Generate QR Code</button>
+
+    <div class="info" id="output"></div>
+
+    <div id="qrcode"></div>
+
+    <div class="info" style="margin-top: 20px;">
+      <strong>Format QR Code:</strong><br>
+      <code>checkin:CONTRACT_ADDRESS.CONTRACT_NAME</code>
+      <br><br>
+      <strong>Example:</strong><br>
+      <code>checkin:ST1PQH...ZGZGM.test-event-checkin</code>
+    </div>
+  </div>
+
+  <script>
+    function generateQR() {
+      const contractAddress = document.getElementById('contractAddress').value.trim();
+      const contractName = document.getElementById('contractName').value.trim();
+      const output = document.getElementById('output');
+      const qrcodeDiv = document.getElementById('qrcode');
+
+      // Validate inputs
+      if (!contractAddress || !contractName) {
+        output.innerHTML = '<span class="error">❌ Please fill both fields!</span>';
+        qrcodeDiv.style.display = 'none';
+        return;
+      }
+
+      // Generate QR data
+      const qrData = `checkin:${contractAddress}.${contractName}`;
+
+      // Display info
+      output.innerHTML = `
+        <strong class="success">✅ QR Code Generated!</strong><br><br>
+        <strong>QR Data:</strong><br>
+        <code>${qrData}</code><br><br>
+        <strong>Length:</strong> ${qrData.length} characters<br>
+        <strong>Starts with "checkin:":</strong> ${qrData.startsWith('checkin:') ? '✅ YES' : '❌ NO'}<br>
+        <strong>Has dot separator:</strong> ${qrData.includes('.') ? '✅ YES' : '❌ NO'}
+      `;
+
+      // Clear previous QR
+      qrcodeDiv.innerHTML = '';
+      qrcodeDiv.style.display = 'block';
+
+      // Generate QR code
+      QRCode.toCanvas(qrData, {
+        width: 300,
+        margin: 2,
+        errorCorrectionLevel: 'H'
+      }, (error, canvas) => {
+        if (error) {
+          output.innerHTML += '<br><span class="error">❌ Error generating QR: ' + error + '</span>';
+          return;
+        }
+        qrcodeDiv.appendChild(canvas);
+
+        // Add download button
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = 'Download QR Code';
+        downloadBtn.style.marginTop = '20px';
+        downloadBtn.onclick = () => {
+          const link = document.createElement('a');
+          link.download = 'checkin-qr-test.png';
+          link.href = canvas.toDataURL();
+          link.click();
+        };
+        qrcodeDiv.appendChild(downloadBtn);
+      });
+    }
+
+    // Auto-generate on load
+    window.onload = () => {
+      generateQR();
+    };
+  </script>
+</body>
+</html>

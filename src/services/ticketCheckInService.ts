@@ -42,7 +42,63 @@ export interface TicketValidation {
 }
 
 /**
- * Parse check-in QR data
+ * Parse check-in QR data from Event Organizer
+ * Format: "checkin:CONTRACT_ADDRESS.CONTRACT_NAME:EVENT_ID"
+ * This QR is displayed by EO at the event entrance
+ */
+export interface CheckInPointData {
+  contractAddress: string;
+  contractName: string;
+  eventId: number;
+}
+
+export function parseCheckInPointQR(qrData: string): CheckInPointData | null {
+  try {
+    if (!qrData.startsWith('checkin:')) {
+      return null;
+    }
+
+    const parts = qrData.substring(8).split(':');
+    if (parts.length !== 2) {
+      return null;
+    }
+
+    const [contractId, eventIdStr] = parts;
+    const [contractAddress, contractName] = contractId.split('.');
+
+    if (!contractAddress || !contractName) {
+      return null;
+    }
+
+    const eventId = parseInt(eventIdStr);
+    if (isNaN(eventId)) {
+      return null;
+    }
+
+    return {
+      contractAddress,
+      contractName,
+      eventId,
+    };
+  } catch (error) {
+    console.error('❌ Error parsing check-in point QR:', error);
+    return null;
+  }
+}
+
+/**
+ * Generate check-in point QR data (for Event Organizer)
+ */
+export function generateCheckInPointQR(
+  contractAddress: string,
+  contractName: string,
+  eventId: number
+): string {
+  return `checkin:${contractAddress}.${contractName}:${eventId}`;
+}
+
+/**
+ * Parse check-in QR data (legacy - for backward compatibility)
  * Format: "checkin:CONTRACT_ADDRESS.CONTRACT_NAME:TOKEN_ID:EVENT_DATE:EVENT_TIME"
  */
 export function parseCheckInQRData(qrData: string): CheckInData | null {
@@ -197,7 +253,28 @@ export async function validateTicket(
 }
 
 /**
- * Check-in ticket (mark as used)
+ * Get user's tickets for a specific event
+ */
+export async function getUserTicketsForEvent(
+  contractAddress: string,
+  contractName: string,
+  eventId: number,
+  userAddress: string
+): Promise<number[]> {
+  try {
+    // This is a simplified version - in reality you'd need to query all user's NFTs
+    // and filter by event ID
+    // For now, we'll return an empty array and let the user select their ticket manually
+    console.log('📋 [CheckIn] Getting tickets for event:', eventId);
+    return [];
+  } catch (error) {
+    console.error('❌ Error getting user tickets:', error);
+    return [];
+  }
+}
+
+/**
+ * Check-in ticket (mark as used) - User initiates this after scanning EO's QR
  */
 export async function checkInTicket(
   contractAddress: string,

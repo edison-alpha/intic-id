@@ -721,19 +721,20 @@ ${formData.pricingMode === 'fixed'
   )
 )
 
-;; Validate/Use ticket (only owner can mark as used)
+;; Use ticket (check-in) - Called by ticket owner to check-in at event
+;; This function allows attendees to check-in themselves by scanning QR code at entrance
 (define-public (use-ticket (token-id uint))
   (let
     (
       (owner (unwrap! (nft-get-owner? ${nftName}-ticket token-id) err-invalid-token))
     )
-    ;; Only contract owner (event organizer) can validate tickets
-    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    ;; Verify caller is the ticket owner
+    (asserts! (is-eq tx-sender owner) err-not-token-owner)
 
     ;; Check ticket hasn't been used
     (asserts! (not (default-to false (map-get? ticket-used token-id))) err-ticket-used)
 
-    ;; Mark ticket as used
+    ;; Mark ticket as used (check-in completed)
     (map-set ticket-used token-id true)
 
     (ok true)
