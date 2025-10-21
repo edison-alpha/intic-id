@@ -3,10 +3,17 @@
  * Upload images and metadata to IPFS via Pinata
  */
 
+// IMPORTANT: For development, use dev server (npm run dev)
+// Environment variables are embedded at BUILD TIME by Vite
 const PINATA_API_KEY = import.meta.env.VITE_PINATA_API_KEY;
 const PINATA_API_SECRET = import.meta.env.VITE_PINATA_API_SECRET;
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
 const PINATA_GATEWAY = 'https://gateway.pinata.cloud/ipfs';
+
+// Debug: Log if JWT is loaded (only in development)
+if (import.meta.env.DEV) {
+  console.log('🔑 Pinata JWT loaded:', PINATA_JWT ? `Yes (${PINATA_JWT.substring(0, 20)}...)` : 'No');
+}
 
 export interface PinataUploadResponse {
   IpfsHash: string;

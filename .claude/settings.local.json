@@ -11,7 +11,8 @@
       "Bash(test:*)",
       "Bash(git checkout:*)",
       "Bash(rm:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(ipconfig)"
     ],
     "deny": [],
     "ask": []

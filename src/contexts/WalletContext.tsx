@@ -259,10 +259,39 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       throw new Error(`Insufficient balance. Have: ${balance} STX, need: ${amount} STX`);
     }
 
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<string>(async (resolve, reject) => {
       try {
         const amountInMicroSTX = Math.floor(amount * 1000000);
+        const walletType = localStorage.getItem('wallet-type');
 
+        // For mobile Xverse, use direct provider API
+        if (walletType === 'xverse' && window.XverseProviders?.StacksProvider) {
+          console.log('🔄 Using Xverse provider for STX transfer');
+          try {
+            const response = await window.XverseProviders.StacksProvider.request('stx_transferStx', {
+              recipient,
+              amount: amountInMicroSTX.toString(),
+              memo: 'Transfer from Intic',
+            });
+
+            console.log('✅ Xverse STX transfer response:', response);
+
+            if (response?.result?.txId || response?.result?.txid) {
+              const txId = response.result.txId || response.result.txid;
+              resolve(txId);
+              return;
+            } else if (typeof response === 'string') {
+              resolve(response);
+              return;
+            }
+          } catch (providerError: any) {
+            console.error('❌ Xverse provider error:', providerError);
+            // Continue to try @stacks/connect as fallback
+          }
+        }
+
+        // Fallback to @stacks/connect
+        console.log('🔄 Using @stacks/connect for STX transfer');
         openSTXTransfer({
           recipient,
           amount: amountInMicroSTX.toString(),
@@ -308,8 +337,40 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       throw new Error(`Contract code too large: ${code.length} bytes (max ~100KB)`);
     }
 
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<string>(async (resolve, reject) => {
       try {
+        const walletType = localStorage.getItem('wallet-type');
+        console.log('📝 Deploying contract:', contractName, 'Wallet type:', walletType);
+
+        // For mobile Xverse, use direct provider API
+        if (walletType === 'xverse' && window.XverseProviders?.StacksProvider) {
+          console.log('🔄 Using Xverse provider for contract deployment');
+          try {
+            const response = await window.XverseProviders.StacksProvider.request('stx_deployContract', {
+              name: contractName,
+              clarityCode: code,
+              network: 'testnet',
+              postConditionMode: 'allow',
+            });
+
+            console.log('✅ Xverse deployment response:', response);
+
+            if (response?.result?.txId || response?.result?.txid) {
+              const txId = response.result.txId || response.result.txid;
+              resolve(txId);
+              return;
+            } else if (typeof response === 'string') {
+              resolve(response);
+              return;
+            }
+          } catch (providerError: any) {
+            console.error('❌ Xverse provider error:', providerError);
+            // Continue to try @stacks/connect as fallback
+          }
+        }
+
+        // Fallback to @stacks/connect (for desktop or if Xverse fails)
+        console.log('🔄 Using @stacks/connect for contract deployment');
         openContractDeploy({
           contractName,
           codeBody: code,
@@ -389,14 +450,51 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       throw new Error('No wallet connected');
     }
 
-    return new Promise<any>((resolve, reject) => {
+    return new Promise<any>(async (resolve, reject) => {
       try {
+        const walletType = localStorage.getItem('wallet-type');
         console.log('🔍 Calling contract function:', {
           contract: `${params.contractAddress}.${params.contractName}`,
           function: params.functionName,
-          args: params.functionArgs
+          walletType
         });
 
+        // For mobile Xverse, use direct provider API
+        if (walletType === 'xverse' && window.XverseProviders?.StacksProvider) {
+          console.log('🔄 Using Xverse provider for contract call');
+          try {
+            // Serialize Clarity values to hex strings
+            const { serializeCV } = await import('@stacks/transactions');
+            const serializedArgs = params.functionArgs.map(arg => {
+              const serialized = serializeCV(arg);
+              return `0x${Buffer.from(serialized).toString('hex')}`;
+            });
+
+            const response = await window.XverseProviders.StacksProvider.request('stx_callContract', {
+              contract: `${params.contractAddress}.${params.contractName}`,
+              functionName: params.functionName,
+              functionArgs: serializedArgs,
+              network: 'testnet',
+              postConditionMode: 'allow',
+            });
+
+            console.log('✅ Xverse contract call response:', response);
+
+            // Call the custom onFinish callback if provided
+            if (params.onFinish) {
+              params.onFinish(response);
+            }
+
+            resolve(response);
+            return;
+          } catch (providerError: any) {
+            console.error('❌ Xverse provider error:', providerError);
+            // Continue to try @stacks/connect as fallback
+          }
+        }
+
+        // Fallback to @stacks/connect (for desktop or if Xverse fails)
+        console.log('🔄 Using @stacks/connect for contract call');
         openContractCall({
           contractAddress: params.contractAddress,
           contractName: params.contractName,

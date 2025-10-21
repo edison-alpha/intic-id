@@ -163,11 +163,32 @@ export const TestPinata: React.FC = () => {
           )}
 
           {/* Environment Info */}
-          <div className="p-3 bg-blue-500/10 text-blue-400 rounded-lg text-xs">
-            <p><strong>JWT Configured:</strong> {import.meta.env.VITE_PINATA_JWT ? 'Yes' : 'No'}</p>
-            <p><strong>User Agent:</strong> {navigator.userAgent.substring(0, 50)}...</p>
-            <p><strong>Network:</strong> {navigator.onLine ? 'Online' : 'Offline'}</p>
+          <div className="p-3 bg-blue-500/10 text-blue-400 rounded-lg text-xs space-y-1">
+            <p><strong>Mode:</strong> {import.meta.env.DEV ? 'Development' : 'Production'}</p>
+            <p><strong>JWT Configured:</strong> {import.meta.env.VITE_PINATA_JWT ? '✅ Yes' : '❌ No'}</p>
+            {import.meta.env.VITE_PINATA_JWT && (
+              <p><strong>JWT Preview:</strong> {import.meta.env.VITE_PINATA_JWT.substring(0, 30)}...</p>
+            )}
+            <p><strong>Network:</strong> {navigator.onLine ? '✅ Online' : '❌ Offline'}</p>
+            <p className="break-all"><strong>User Agent:</strong> {navigator.userAgent.substring(0, 80)}...</p>
           </div>
+
+          {/* Instructions */}
+          {!import.meta.env.VITE_PINATA_JWT && (
+            <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <p className="text-yellow-500 font-semibold mb-2">⚠️ Environment Variable Not Loaded!</p>
+              <div className="text-xs text-yellow-400 space-y-1">
+                <p><strong>If using DEV server:</strong></p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Make sure dev server is running: <code className="bg-black/30 px-1">npm run dev</code></li>
+                  <li>Access via: <code className="bg-black/30 px-1">http://192.168.1.2:8080/test-pinata</code></li>
+                  <li>NOT via localhost on mobile!</li>
+                </ol>
+                <p className="mt-2"><strong>If using BUILT app:</strong></p>
+                <p>Rebuild with: <code className="bg-black/30 px-1">npm run build</code></p>
+              </div>
+            </div>
+          )}
 
           {/* Logs */}
           {logs.length > 0 && (
