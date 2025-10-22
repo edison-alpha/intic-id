@@ -511,6 +511,10 @@ export const extractEventNameFromContract = (contractName: string): string => {
  */
 const formatMicroSTX = (microSTX: string): string => {
   const stx = parseInt(microSTX) / 1000000;
+  // Safe guard against NaN or invalid values
+  if (isNaN(stx) || stx === null || stx === undefined) {
+    return '0';
+  }
   return parseFloat(stx.toFixed(6)).toString().replace(/\.?0+$/, '');
 };
 

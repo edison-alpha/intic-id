@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { safeToFixed } from "../utils/formatNumber";
 import {
   Ticket,
   PlusCircle,
@@ -344,7 +345,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                   ) : (
                     <>
                       <span className="font-semibold">
-                        {balance !== null ? balance.toFixed(4) : '0.0000'}
+                        {safeToFixed(balance, 4, '0.0000')}
                       </span>
                       <img
                         src={stxLogo}
@@ -484,7 +485,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                       ) : (
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-semibold text-[#FE5C02]">
-                            {balance !== null ? balance.toFixed(4) : '0.0000'}
+                            {safeToFixed(balance, 4, '0.0000')}
                           </span>
                           <img
                             src={stxLogo}

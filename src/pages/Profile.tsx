@@ -205,7 +205,12 @@ const Profile = () => {
           <div className="bg-gradient-to-br from-[#FE5C02]/10 to-purple-600/10 border border-[#FE5C02]/20 rounded-2xl md:rounded-xl p-5 md:p-6">
             <p className="text-gray-400 text-xs md:text-sm mb-2">Available Balance</p>
             <p className="text-3xl md:text-4xl font-bold text-[#FE5C02] mb-1">{balance} <span className="text-xl md:text-2xl">STX</span></p>
-            <p className="text-gray-400 text-xs md:text-sm">≈ ${(parseFloat(balance.replace(',', '')) * 0.5).toFixed(2)} USD</p>
+            <p className="text-gray-400 text-xs md:text-sm">
+              ≈ ${(() => {
+                const balanceNum = parseFloat(balance.replace(',', ''));
+                return !isNaN(balanceNum) ? (balanceNum * 0.5).toFixed(2) : '0.00';
+              })()} USD
+            </p>
           </div>
         </div>
         )}

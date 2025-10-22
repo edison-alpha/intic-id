@@ -33,11 +33,14 @@ export function transformToNormalizedEvent(
     }
   }
   
-  // Parse price
+  // Parse price with safe guards
   const priceInMicroSTX = Number(contractData?.price || 0);
   const priceInSTX = priceInMicroSTX / 1000000;
-  // Use priceFormatted from contractData if available, otherwise calculate
-  const priceFormatted = contractData?.priceFormatted || priceInSTX.toFixed(6).replace(/\.?0+$/, '');
+  // Use priceFormatted from contractData if available, otherwise calculate with null check
+  const priceFormatted = contractData?.priceFormatted || 
+    (isNaN(priceInSTX) || priceInSTX === null || priceInSTX === undefined 
+      ? '0' 
+      : priceInSTX.toFixed(6).replace(/\.?0+$/, ''));
   
   // Parse supply
   const totalSupply = Number(contractData?.totalSupply || contractData?.['total-supply'] || 0);

@@ -20,7 +20,7 @@ import {
   Settings,
   Copy,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { safeToFixed } from '../utils/formatNumber';
 import {
   uploadImageToPinata,
   uploadMetadataToPinata,
@@ -436,7 +436,7 @@ const CreateEventNFT = () => {
     const requiredSTX = DEPLOYMENT_COSTS.eventContract + DEPLOYMENT_COSTS.registryFee; // 0.25 + 0.01 STX
     if (parseFloat(stxBalance) < requiredSTX) {
       toast.error(
-        `Insufficient STX balance. Required: ${requiredSTX.toFixed(2)} STX (${DEPLOYMENT_COSTS.eventContract} deploy + ${DEPLOYMENT_COSTS.registryFee} registry), Available: ${stxBalance} STX. Please fund your wallet from testnet faucet.`
+        `Insufficient STX balance. Required: ${safeToFixed(requiredSTX, 2)} STX (${DEPLOYMENT_COSTS.eventContract} deploy + ${DEPLOYMENT_COSTS.registryFee} registry), Available: ${stxBalance} STX. Please fund your wallet from testnet faucet.`
       );
       return;
     }
@@ -1487,7 +1487,7 @@ ${formData.pricingMode === 'usd-dynamic' ? `(define-read-only (get-ticket-price-
                       <p className="text-white font-medium">{selectedVenue.name}</p>
                       <p className="text-sm text-gray-400">{selectedVenue.address}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        Coordinates: {parseFloat(selectedVenue.lat).toFixed(6)}, {parseFloat(selectedVenue.lon).toFixed(6)}
+                        Coordinates: {safeToFixed(parseFloat(selectedVenue.lat), 6)}, {safeToFixed(parseFloat(selectedVenue.lon), 6)}
                       </p>
                     </div>
                   </div>
@@ -1644,9 +1644,12 @@ ${formData.pricingMode === 'usd-dynamic' ? `(define-read-only (get-ticket-price-
                     <p className="text-xs text-gray-500">
                       Set the price buyers will pay per ticket
                     </p>
-                    {cryptoPrice && !priceLoading && !priceError && (
+                    {cryptoPrice && !priceLoading && !priceError && formData.ticketPrice && (
                       <p className="text-xs text-green-400">
-                        ≈ ${(parseFloat(formData.ticketPrice) * cryptoPrice).toFixed(2)} USD
+                        ≈ ${(() => {
+                          const price = parseFloat(formData.ticketPrice);
+                          return !isNaN(price) && cryptoPrice ? (price * cryptoPrice).toFixed(2) : '0.00';
+                        })()} USD
                       </p>
                     )}
                   </div>
@@ -1838,7 +1841,7 @@ ${formData.pricingMode === 'usd-dynamic' ? `(define-read-only (get-ticket-price-
                   </div>
                   <div className="flex items-center justify-between text-sm font-semibold border-t border-gray-600 pt-2 mt-2">
                     <span className="text-gray-300">Total Cost (2 Transactions):</span>
-                    <span className="text-white">~{(DEPLOYMENT_COSTS.eventContract + DEPLOYMENT_COSTS.registryFee).toFixed(2)} STX</span>
+                    <span className="text-white">~{safeToFixed(DEPLOYMENT_COSTS.eventContract + DEPLOYMENT_COSTS.registryFee, 2)} STX</span>
                   </div>
                 </div>
               </div>
