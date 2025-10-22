@@ -1,6 +1,6 @@
 /**
- * Ticket Detail Service
- * Fetches detailed ticket information from blockchain
+ * Ticket Detail Service (Updated to use Express Server)
+ * Fetches detailed ticket information from blockchain via server optimization
  */
 
 import { callReadOnlyFunction, cvToValue, uintCV } from '@stacks/transactions';
@@ -9,6 +9,7 @@ import { getEventMetadataFromContract, fetchNFTMintTransaction } from './nftFetc
 
 const NETWORK = import.meta.env.VITE_STACKS_NETWORK || 'testnet';
 const network = NETWORK === 'mainnet' ? new StacksMainnet() : new StacksTestnet();
+const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
 
 export interface TicketDetail {
   // Basic Info
@@ -69,6 +70,32 @@ export async function getTicketDetail(
 ): Promise<TicketDetail | null> {
   try {
     console.log('🎫 [TicketDetail] Fetching ticket:', ticketId);
+
+    // Try using the server endpoint first
+    try {
+      const url = `${SERVER_BASE}/api/hiro/contract/${ticketId.split('-')[0]}/user/${userAddress}/tokens`;
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const ownedTokens = await response.json();
+        const tokenId = parseInt(ticketId.split('-')[1]);
+        
+        // If the user owns this token, get more details
+        if (ownedTokens.includes(tokenId)) {
+          // For now, we'll still need to get detailed info for this specific ticket
+          // The server implementation in the backend could be enhanced to return this
+        } else {
+          console.log(`⚠️ User does not own this ticket ${ticketId}`);
+          // Continue with original method to still show ticket details
+        }
+      }
+    } catch (serverError) {
+      console.log('Server endpoint failed, continuing with original method:', serverError);
+    }
 
     // Parse ticket ID - format: "CONTRACT_ADDRESS.CONTRACT_NAME-TOKEN_ID"
     // Contract name may contain dashes, so split from the last dash
@@ -278,6 +305,28 @@ export async function getTicketHistory(
   tokenId: number
 ): Promise<any[]> {
   try {
+    // Try using the server endpoint first
+    try {
+      const url = `${SERVER_BASE}/api/hiro/nft/${contractId}/events?type=transfers&limit=100`;
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Filter for specific tokenId if necessary
+        const tokenHistory = data.transfers?.filter((transfer: any) => transfer.tokenId === tokenId) || [];
+        return tokenHistory;
+      } else {
+        console.log(`Server endpoint failed (${response.status}), falling back to direct API call`);
+      }
+    } catch (serverError) {
+      console.log('Server endpoint failed, falling back to direct API call:', serverError);
+    }
+
+    // Fallback to direct API call
     const [contractAddress, contractName] = contractId.split('.');
 
     // Query Hiro API for NFT history

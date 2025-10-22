@@ -1,6 +1,6 @@
 /**
- * Ticket Check-In Service
- * Handles ticket validation and check-in process
+ * Ticket Check-In Service (Updated to use Express Server)
+ * Handles ticket validation and check-in process via server optimization
  */
 
 import {
@@ -17,6 +17,7 @@ import type { StacksNetwork } from '@stacks/network';
 
 const NETWORK = import.meta.env.VITE_STACKS_NETWORK || 'testnet';
 const network: StacksNetwork = NETWORK === 'mainnet' ? new StacksMainnet() : new StacksTestnet();
+const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
 
 export { NETWORK };
 
@@ -170,6 +171,39 @@ export async function validateTicket(
 ): Promise<TicketValidation> {
   try {
     console.log('🔍 [CheckIn] Validating ticket:', { contractAddress, contractName, tokenId });
+
+    // Try using the server validation endpoint first
+    try {
+      const url = `${SERVER_BASE}/api/optimized/checkin/validate`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contractId: `${contractAddress}.${contractName}`,
+          tokenId: tokenId,
+          userAddress: '' // No user address needed for generic validation
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        // Transform server result to match expected format
+        return {
+          isValid: result.isValid,
+          isUsed: result.isUsed,
+          isExpired: result.isExpired,
+          owner: result.owner || '',
+          eventDate: new Date(eventDate + ' ' + eventTime),
+          message: result.message
+        };
+      } else {
+        console.log(`Server validation endpoint failed (${response.status}), falling back to direct validation`);
+      }
+    } catch (serverError) {
+      console.log('Server validation failed, falling back to direct validation:', serverError);
+    }
 
     // 1. Check if ticket exists and get details
     const ticketResult = await callReadOnlyFunction({

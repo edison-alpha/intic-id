@@ -1,7 +1,6 @@
 /**
- * User Tickets Service
- * Fetches user's NFT tickets from registered events
- * Optimized for fast loading
+ * User Tickets Service (Updated to use Express Server)
+ * Fetches user's NFT tickets from registered events using server optimization
  */
 
 import { getAllRegistryEvents } from './registryService';
@@ -10,6 +9,7 @@ import { callReadOnlyFunction, cvToValue, uintCV } from '@stacks/transactions';
 import { StacksTestnet } from '@stacks/network';
 
 const network = new StacksTestnet();
+const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
 
 // Cache for ticket data
 const ticketCache = new Map<string, { data: any[]; timestamp: number }>();
@@ -35,28 +35,79 @@ export interface UserTicket {
 
 /**
  * Get user's owned NFT tickets from all registered events
- * Optimized with caching and parallel processing
+ * Uses optimized server endpoint for better performance
  */
 export async function getUserNFTTickets(
   userAddress: string
 ): Promise<UserTicket[]> {
   try {
-    console.log('🎫 [UserTickets] Fetching tickets for:', userAddress);
+
 
     // Check cache first
     const cached = ticketCache.get(userAddress);
     if (cached && Date.now() - cached.timestamp < TICKET_CACHE_TTL) {
-      console.log('💾 Using cached ticket data');
+
       return cached.data;
     }
 
+    // Try using the optimized server endpoint first
+    try {
+      const url = `${SERVER_BASE}/api/optimized/user/${userAddress}/tickets`;
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const serverData = await response.json();
+        
+        // Transform server data to match expected UserTicket format
+        const userTickets = serverData.tickets.map((ticket: any) => ({
+          id: ticket.id || `${ticket.contractId}-${ticket.tokenId}`,
+          tokenId: ticket.tokenId,
+          eventName: ticket.eventName,
+          eventDate: ticket.eventDate ? new Date(ticket.eventDate).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            }) : 'TBA',
+          eventTime: ticket.eventDate ? new Date(ticket.eventDate).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }) : 'TBA',
+          location: ticket.location || ticket.venue,
+          image: ticket.image || ticket.imageUri || '/background-section1.png',
+          ticketNumber: ticket.ticketNumber || `#TKT-${ticket.tokenId.toString().padStart(6, '0')}`,
+          contractAddress: ticket.contractAddress,
+          contractName: ticket.contractName,
+          contractId: ticket.contractId,
+          status: ticket.status || determineTicketStatus(ticket.eventDate),
+          quantity: ticket.quantity || 1,
+          category: ticket.category || 'General',
+          price: ticket.priceFormatted || ticket.price || '0',
+        }));
+
+        // Cache the results
+        ticketCache.set(userAddress, { data: userTickets, timestamp: Date.now() });
+        
+
+        return userTickets;
+      } else {
+        console.warn(`Server endpoint failed (${response.status}), falling back to original method`);
+      }
+    } catch (serverError) {
+      console.warn('Server endpoint failed, falling back to original method:', serverError);
+    }
+
+    // Fallback to the original method if server endpoint fails
     // Get all registered events from blockchain registry
-    console.log('🔍 Calling getAllRegistryEvents()...');
+
     const registryEvents = await getAllRegistryEvents();
-    console.log(`📦 Found ${registryEvents.length} registered events from registry`);
+
 
     if (registryEvents.length > 0) {
-      console.log('📋 Registry events:', registryEvents.map(e => ({
+
         id: e.eventId,
         contract: `${e.contractAddress}.${e.contractName}`,
         organizer: e.organizer,
@@ -88,15 +139,15 @@ export async function getUserNFTTickets(
           const [address, name] = contractId.split('.');
 
           // Check if user owns any tokens from this contract
-          console.log(`  🔍 Checking ownership for ${contractId}...`);
+
           const ownedTokens = await getUserOwnedTokens(address, name, userAddress);
 
           if (ownedTokens.length === 0) {
-            console.log(`  ❌ User does not own any tickets from ${name}`);
+
             return [];
           }
 
-          console.log(`  ✅ User owns ${ownedTokens.length} ticket(s) from ${name}:`, ownedTokens);
+
 
           // Fetch event data for this contract
           const eventData = await getEventDataFromContract(contractId);
@@ -154,7 +205,7 @@ export async function getUserNFTTickets(
       return dateA - dateB;
     });
 
-    console.log(`✅ [UserTickets] Total tickets found: ${userTickets.length}`);
+
 
     // Cache the results
     ticketCache.set(userAddress, { data: userTickets, timestamp: Date.now() });
@@ -176,7 +227,29 @@ async function getUserOwnedTokens(
   userAddress: string
 ): Promise<number[]> {
   try {
-    console.log(`    📊 Getting last token ID from ${contractAddress}.${contractName}...`);
+    // Try using the optimized server endpoint first
+    const contractId = `${contractAddress}.${contractName}`;
+    try {
+      const url = `${SERVER_BASE}/api/optimized/contract/${contractId}/user/${userAddress}/tokens`;
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const ownedTokens = await response.json();
+
+        return ownedTokens;
+      } else {
+
+      }
+    } catch (serverError) {
+
+    }
+
+    // Fallback to direct calls
+
 
     // Get last token ID to know range
     const lastTokenIdResponse = await callReadOnlyFunction({
@@ -189,15 +262,15 @@ async function getUserOwnedTokens(
     });
 
     const lastTokenId = Number(cvToValue(lastTokenIdResponse).value);
-    console.log(`    📊 Last token ID: ${lastTokenId}`);
+
 
     if (lastTokenId === 0) {
-      console.log(`    ⚠️ No tokens minted yet`);
+
       return [];
     }
 
     // Check ownership for each token (parallel)
-    console.log(`    🔍 Checking ownership for tokens 1-${lastTokenId} for user ${userAddress}...`);
+
     const ownershipChecks = [];
     for (let tokenId = 1; tokenId <= lastTokenId; tokenId++) {
       ownershipChecks.push(
@@ -213,11 +286,11 @@ async function getUserOwnedTokens(
             try {
               const ownerResult = cvToValue(result);
               const owner = ownerResult?.value;
-              console.log(`      Token #${tokenId} owner: ${owner}`);
+
 
               // Check if this is the user's token
               if (owner === userAddress) {
-                console.log(`      ✅ Token #${tokenId} belongs to user!`);
+
                 return tokenId;
               }
             } catch (err) {
@@ -235,7 +308,7 @@ async function getUserOwnedTokens(
     const results = await Promise.all(ownershipChecks);
     const ownedTokens = results.filter((id): id is number => id !== null);
 
-    console.log(`    ✅ User owns ${ownedTokens.length} token(s):`, ownedTokens);
+
     return ownedTokens;
 
   } catch (error) {

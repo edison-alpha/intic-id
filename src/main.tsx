@@ -2,9 +2,22 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { Buffer } from 'buffer'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // 1. Import the toolbar
 import { initToolbar } from '@21st-extension/toolbar';
+
+// Create React Query client for caching
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // Data fresh for 1 minute
+      gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+      refetchOnWindowFocus: false,
+      retry: 2,
+    },
+  },
+});
 
 // Setup Buffer globally for Stacks transactions
 if (typeof window !== 'undefined') {
@@ -27,4 +40,8 @@ function setupStagewise() {
 // Call the setup function when appropriate for your framework
 setupStagewise();
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <QueryClientProvider client={queryClient}>
+    <App />
+  </QueryClientProvider>
+);

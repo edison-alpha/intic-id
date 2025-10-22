@@ -53,15 +53,20 @@ export interface FullProfile {
 const CONTRACT_ADDRESS = 'ST1X7MNQF6TKA52PA7JRH99S9KKXH9TY8CSG8AK4C';
 const CONTRACT_NAME = 'user-profile';
 const NETWORK = new StacksTestnet();
+const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
 
 const CACHE_KEY = 'intic-profile-cache-v2'; // Updated to invalidate old cache
 const OLD_CACHE_KEY = 'intic-profile-cache'; // Old cache key to clear
 const PINATA_JWT = import.meta.env.VITE_PINATA_JWT;
 const PINATA_GATEWAY = import.meta.env.VITE_PINATA_GATEWAY_URL || 'https://gateway.pinata.cloud';
 
+// Rate limiting protection
+let lastProfileFetch = 0;
+const PROFILE_FETCH_COOLDOWN = 5000; // 5 seconds between fetches
+const pendingProfileRequests = new Map<string, Promise<any>>();
+
 // Clear old cache on module load
 if (typeof window !== 'undefined' && localStorage.getItem(OLD_CACHE_KEY)) {
-  console.log('🧹 Clearing old profile cache...');
   localStorage.removeItem(OLD_CACHE_KEY);
 }
 
@@ -99,7 +104,7 @@ export async function uploadToIPFS(data: ProfileData): Promise<string | null> {
     }
 
     const result = await response.json();
-    console.log('✅ Uploaded to IPFS:', result.IpfsHash);
+
     return result.IpfsHash;
 
   } catch (error) {
@@ -120,7 +125,7 @@ export async function fetchFromIPFS(ipfsHash: string): Promise<ProfileData | nul
     }
 
     const data = await response.json();
-    console.log('✅ Fetched from IPFS:', ipfsHash);
+
     return data;
 
   } catch (error) {
@@ -134,41 +139,113 @@ export async function fetchFromIPFS(ipfsHash: string): Promise<ProfileData | nul
 // ============================================================================
 
 /**
- * Get profile from smart contract
+ * Get profile from smart contract with rate limiting protection
  */
 export async function getProfileFromContract(address: string): Promise<any> {
   try {
-    console.log('🔍 Reading profile from contract for:', address);
-    const result = await callReadOnlyContractFunction(
-      CONTRACT_ADDRESS,
-      CONTRACT_NAME,
-      'get-profile',
-      [principalCV(address)],
-      address
-    );
+    // Check if there's already a pending request for this address
+    if (pendingProfileRequests.has(address)) {
 
-    if (!result.success) {
-      console.error('Failed to read profile from contract');
-      return null;
+      return await pendingProfileRequests.get(address);
     }
 
-    console.log('📥 Raw contract result:', result.result);
+    // Rate limiting: Check cooldown
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastProfileFetch;
+    if (timeSinceLastFetch < PROFILE_FETCH_COOLDOWN) {
+      const waitTime = PROFILE_FETCH_COOLDOWN - timeSinceLastFetch;
 
-    // Parse the response - handle (optional ...) wrapper
-    const parsed = parseClarityResponse(result.result);
-
-    console.log('📦 Parsed result:', parsed);
-
-    // If it's none, return null
-    if (parsed === null) {
-      console.log('✅ No profile exists (none)');
-      return null;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
     }
 
-    console.log('✅ Profile found on-chain');
-    return { value: parsed };
+    // Create pending request promise
+    const requestPromise = (async () => {
+      try {
+        lastProfileFetch = Date.now();
+        
+
+        
+        // Try server endpoint first
+        try {
+          const serverUrl = `${SERVER_BASE}/api/stacks/contract/${CONTRACT_ADDRESS}/${CONTRACT_NAME}/call-read/get-profile`;
+          const response = await fetch(serverUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              functionArgs: [{ type: 'principal', value: address }],
+              senderAddress: address,
+            }),
+          });
+
+          if (response.ok) {
+            const serverResult = await response.json();
+
+            
+            if (serverResult.success && serverResult.json) {
+              const parsed = parseClarityResponse(serverResult.json);
+              return parsed === null ? null : { value: parsed };
+            }
+          } else if (response.status === 429) {
+            console.warn('⚠️ Server also rate limited, using fallback');
+          }
+        } catch (serverError) {
+
+        }
+
+        // Fallback to direct call
+        const result = await callReadOnlyContractFunction(
+          CONTRACT_ADDRESS,
+          CONTRACT_NAME,
+          'get-profile',
+          [principalCV(address)],
+          address
+        );
+
+        if (!result.success) {
+          console.error('Failed to read profile from contract');
+          return null;
+        }
+
+
+
+        // Parse the response - handle (optional ...) wrapper
+        const parsed = parseClarityResponse(result.result);
+
+
+
+        // If it's none, return null
+        if (parsed === null) {
+
+          return null;
+        }
+
+
+        return { value: parsed };
+      } catch (error: any) {
+        // Handle rate limiting errors
+        if (error.message && error.message.includes('429')) {
+          console.error('❌ Rate limited! Waiting before retry...');
+          // Wait 10 seconds before allowing next request
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          throw new Error('Rate limited. Please wait a moment and try again.');
+        }
+        console.error('❌ Contract read error:', error);
+        return null;
+      } finally {
+        // Clean up pending request
+        pendingProfileRequests.delete(address);
+      }
+    })();
+
+    // Store pending request
+    pendingProfileRequests.set(address, requestPromise);
+    
+    return await requestPromise;
   } catch (error) {
-    console.error('❌ Contract read error:', error);
+    console.error('❌ Profile fetch error:', error);
+    pendingProfileRequests.delete(address);
     return null;
   }
 }
@@ -208,7 +285,7 @@ export async function createProfile(
   ipfsHash: string,
   callContractFn: (params: any) => Promise<any>
 ): Promise<void> {
-  console.log('📝 Calling create-profile with:', { username, ipfsHash });
+
 
   return new Promise((resolve, reject) => {
     callContractFn({
@@ -220,7 +297,7 @@ export async function createProfile(
         stringAsciiCV(ipfsHash),
       ],
       onFinish: (data: any) => {
-        console.log('✅ Profile created:', data.txId);
+
         resolve();
       },
     }).catch((error: any) => {
@@ -237,7 +314,7 @@ export async function updateMetadata(
   ipfsHash: string,
   callContractFn: (params: any) => Promise<any>
 ): Promise<void> {
-  console.log('📝 Updating metadata with hash:', ipfsHash);
+
 
   return new Promise((resolve, reject) => {
     callContractFn({
@@ -246,7 +323,7 @@ export async function updateMetadata(
       functionName: 'update-metadata',
       functionArgs: [stringAsciiCV(ipfsHash)],
       onFinish: (data: any) => {
-        console.log('✅ Metadata updated:', data.txId);
+
         resolve();
       },
     }).catch((error: any) => {
@@ -263,7 +340,7 @@ export async function updateUsername(
   newUsername: string,
   callContractFn: (params: any) => Promise<any>
 ): Promise<void> {
-  console.log('📝 Updating username to:', newUsername);
+
 
   return new Promise((resolve, reject) => {
     callContractFn({
@@ -272,7 +349,7 @@ export async function updateUsername(
       functionName: 'update-username',
       functionArgs: [stringAsciiCV(newUsername)],
       onFinish: (data: any) => {
-        console.log('✅ Username updated:', data.txId);
+
         resolve();
       },
     }).catch((error: any) => {
@@ -297,7 +374,7 @@ export function saveToCache(profile: FullProfile): void {
       cachedAt: Date.now(),
     };
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    console.log('✅ Profile cached');
+
   } catch (error) {
     console.error('❌ Cache save error:', error);
   }
@@ -305,6 +382,7 @@ export function saveToCache(profile: FullProfile): void {
 
 /**
  * Get profile from cache
+ * Cache valid for 10 minutes to reduce API calls
  */
 export function getFromCache(address: string): FullProfile | null {
   try {
@@ -313,9 +391,16 @@ export function getFromCache(address: string): FullProfile | null {
 
     if (!cached) return null;
 
-    // Cache valid for 5 minutes
-    const isValid = Date.now() - cached.cachedAt < 5 * 60 * 1000;
-    return isValid ? cached : null;
+    // Cache valid for 10 minutes (increased from 5)
+    const CACHE_TTL = 10 * 60 * 1000;
+    const isValid = Date.now() - cached.cachedAt < CACHE_TTL;
+    
+    if (!isValid) {
+
+      return null;
+    }
+    
+    return cached;
 
   } catch {
     return null;
@@ -330,7 +415,7 @@ export function clearCache(address: string): void {
     const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
     delete cache[address];
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    console.log('✅ Cache cleared');
+
   } catch (error) {
     console.error('❌ Cache clear error:', error);
   }
@@ -342,62 +427,85 @@ export function clearCache(address: string): void {
 
 /**
  * Get full profile (from cache, contract, and IPFS)
+ * Enhanced with aggressive caching to prevent rate limiting
  */
 export async function getFullProfile(address: string): Promise<FullProfile> {
-  // Try cache first
+  // Try cache first - ALWAYS check cache
   const cached = getFromCache(address);
   if (cached) {
-    console.log('✅ Using cached profile');
+
     return cached;
   }
 
-  // Get from contract
-  const contractData = await getProfileFromContract(address);
+  // Check if there's a pending request for this address
+  const pendingKey = `profile-${address}`;
+  if (pendingProfileRequests.has(pendingKey)) {
 
-  if (!contractData || !contractData.value) {
-    // No profile exists, return default
-    return createDefaultProfile(address);
+    return await pendingProfileRequests.get(pendingKey);
   }
 
-  const profileData = contractData.value;
-  console.log('🔍 Profile data from contract:', profileData);
+  // Create new request
+  const requestPromise = (async () => {
+    try {
+      // Get from contract (with rate limiting protection)
+      const contractData = await getProfileFromContract(address);
 
-  // Extract values - data is still in {type, value} format
-  const rawData = profileData.value || profileData;
-  const username = rawData.username?.value || rawData.username;
-  const ipfsHash = rawData['ipfs-hash']?.value || rawData['ipfs-hash'];
-  const createdAt = parseInt(rawData['created-at']?.value || rawData['created-at'] || '0');
-  const updatedAt = parseInt(rawData['updated-at']?.value || rawData['updated-at'] || '0');
+      if (!contractData || !contractData.value) {
+        // No profile exists, return default and cache it
+        const defaultProfile = createDefaultProfile(address);
+        saveToCache(defaultProfile);
+        return defaultProfile;
+      }
 
-  console.log('📝 Extracted:', { username, ipfsHash, createdAt, updatedAt });
+      const profileData = contractData.value;
 
-  // Fetch metadata from IPFS
-  const metadata = await fetchFromIPFS(ipfsHash);
-  console.log('💾 IPFS metadata:', metadata);
 
-  const avatarUrl = metadata?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${address}&backgroundColor=FE5C02`;
-  console.log('🖼️ Avatar URL:', avatarUrl?.substring(0, 100) + '...');
+      // Extract values - data is still in {type, value} format
+      const rawData = profileData.value || profileData;
+      const username = rawData.username?.value || rawData.username;
+      const ipfsHash = rawData['ipfs-hash']?.value || rawData['ipfs-hash'];
+      const createdAt = parseInt(rawData['created-at']?.value || rawData['created-at'] || '0');
+      const updatedAt = parseInt(rawData['updated-at']?.value || rawData['updated-at'] || '0');
 
-  const fullProfile: FullProfile = {
-    address,
-    username,
-    ipfsHash,
-    createdAt,
-    updatedAt,
-    email: metadata?.email || '',
-    bio: metadata?.bio || '',
-    avatar: avatarUrl,
-    preferences: metadata?.preferences || {
-      theme: 'dark',
-      language: 'en',
-      notifications: { email: true, push: true },
-    },
-  };
 
-  // Cache it
-  saveToCache(fullProfile);
 
-  return fullProfile;
+      // Fetch metadata from IPFS
+      const metadata = await fetchFromIPFS(ipfsHash);
+
+
+      const avatarUrl = metadata?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${address}&backgroundColor=FE5C02`;
+
+
+      const fullProfile: FullProfile = {
+        address,
+        username,
+        ipfsHash,
+        createdAt,
+        updatedAt,
+        email: metadata?.email || '',
+        bio: metadata?.bio || '',
+        avatar: avatarUrl,
+        preferences: metadata?.preferences || {
+          theme: 'dark',
+          language: 'en',
+          notifications: { email: true, push: true },
+        },
+      };
+
+      // Cache it for 10 minutes
+      saveToCache(fullProfile);
+
+      return fullProfile;
+    } finally {
+      // Clean up pending request
+      pendingProfileRequests.delete(pendingKey);
+    }
+  })();
+
+  // Store pending request
+  pendingProfileRequests.set(pendingKey, requestPromise);
+  
+  return await requestPromise;
 }
 
 /**
@@ -418,26 +526,26 @@ export async function saveProfile(
   // Check if profile exists
   const existingProfile = await getProfileFromContract(address);
 
-  console.log('📊 Profile check result:', existingProfile);
+
 
   if (!existingProfile || !existingProfile.value) {
     // Create new profile
-    console.log('🆕 Creating new profile on-chain...');
+
     await createProfile(username, ipfsHash, callContractFn);
   } else {
     // Update existing profile
-    console.log('🔄 Updating existing profile...');
+
     const rawData = existingProfile.value.value || existingProfile.value;
     const currentUsername = rawData.username?.value || rawData.username;
 
     // Update username if changed
     if (currentUsername !== username) {
-      console.log('📝 Username changed, updating...');
+
       await updateUsername(username, callContractFn);
     }
 
     // Always update metadata
-    console.log('💾 Updating metadata...');
+
     await updateMetadata(ipfsHash, callContractFn);
   }
 

@@ -1,16 +1,14 @@
 /**
- * NFT Ticket Indexer Service
- * Indexes and manages NFT ticketing contract data from Hiro blockchain
+ * NFT Ticket Indexer Service (Updated to use Express Server)
+ * Indexes and manages NFT ticketing contract data from Hiro blockchain via Express Server
  */
 
 import { getContractInfo } from './hiroIndexer';
 import { getNFTTicketDataWithStacks } from './stacksReader';
 
-const HIRO_API_BASE = 'https://api.testnet.hiro.so';
-const HIRO_API_KEY = import.meta.env.VITE_HIRO_API_KEY;
+const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
 
-const getHiroHeaders = () => ({
-  'x-hiro-api-key': HIRO_API_KEY,
+const getServerHeaders = () => ({
   'Content-Type': 'application/json',
 });
 
@@ -102,8 +100,6 @@ export const getNFTTicketData = async (contractId: string): Promise<NFTTicketMet
       return null;
     }
 
-    console.log('📊 [NFT Indexer] Stacks data for', contractId, ':', stacksData);
-
     // Fetch NFT events (mints and transfers) from Hiro API
     const nftEvents = await fetchNFTEvents(contractId);
     
@@ -171,10 +167,10 @@ const fetchNFTEvents = async (contractId: string): Promise<{
   lastActivity?: string;
 }> => {
   try {
-    const url = `${HIRO_API_BASE}/extended/v1/tokens/nft/mints?asset_identifier=${contractId}::nft-ticket&limit=100`;
+    const url = `${SERVER_BASE}/api/hiro/nft/${contractId}/events?type=all&limit=100`;
 
     const response = await fetch(url, {
-      headers: getHiroHeaders(),
+      headers: getServerHeaders(),
     });
 
     if (!response.ok) {
@@ -184,42 +180,31 @@ const fetchNFTEvents = async (contractId: string): Promise<{
     const data = await response.json();
 
     // Parse mint events
-    const mints: NFTMintEvent[] = (data.results || []).map((event: any) => ({
-      txId: event.tx_id,
-      tokenId: parseInt(event.value?.repr?.replace('u', '') || '0'),
+    const mints: NFTMintEvent[] = (data.mints || []).map((event: any) => ({
+      txId: event.txId,
+      tokenId: event.tokenId,
       recipient: event.recipient,
       timestamp: event.timestamp,
-      blockHeight: event.block_height,
-      price: undefined, // Would need to parse from tx
+      blockHeight: event.blockHeight,
+      price: event.price,
     }));
 
-    // Get transfer events
-    const transfersUrl = `${HIRO_API_BASE}/extended/v1/tokens/nft/history?asset_identifier=${contractId}::nft-ticket&limit=100`;
-    const transfersResponse = await fetch(transfersUrl, {
-      headers: getHiroHeaders(),
-    });
+    // Parse transfer events
+    const transfers: NFTTransferEvent[] = (data.transfers || []).map((event: any) => ({
+      txId: event.txId,
+      tokenId: event.tokenId,
+      from: event.from,
+      to: event.to,
+      timestamp: event.timestamp,
+      blockHeight: event.blockHeight,
+    }));
 
-    let transfers: NFTTransferEvent[] = [];
-    if (transfersResponse.ok) {
-      const transfersData = await transfersResponse.json();
-      transfers = (transfersData.results || [])
-        .filter((event: any) => event.value?.type === 'transfer')
-        .map((event: any) => ({
-          txId: event.tx_id,
-          tokenId: parseInt(event.asset?.value?.repr?.replace('u', '') || '0'),
-          from: event.sender || '',
-          to: event.recipient || '',
-          timestamp: event.timestamp,
-          blockHeight: event.block_height,
-        }));
-    }
-
-    const lastActivity = mints.length > 0 && mints[0] ? mints[0].timestamp : new Date().toISOString();
+    const lastActivity = data.lastActivity || new Date().toISOString();
 
     return {
       mints,
       transfers,
-      burns: 0, // Would need to count burn events separately
+      burns: data.burns || 0,
       lastActivity,
     };
 
@@ -234,10 +219,10 @@ const fetchNFTEvents = async (contractId: string): Promise<{
  */
 const fetchNFTHolders = async (contractId: string): Promise<NFTHolder[]> => {
   try {
-    const url = `${HIRO_API_BASE}/extended/v1/tokens/nft/holdings?principal=${contractId}&limit=200`;
+    const url = `${SERVER_BASE}/api/hiro/nft/${contractId}/holders?limit=200`;
 
     const response = await fetch(url, {
-      headers: getHiroHeaders(),
+      headers: getServerHeaders(),
     });
 
     if (!response.ok) {
@@ -246,29 +231,14 @@ const fetchNFTHolders = async (contractId: string): Promise<NFTHolder[]> => {
 
     const data = await response.json();
 
-    // Group by holder address
-    const holdersMap = new Map<string, NFTHolder>();
-
-    (data.results || []).forEach((holding: any) => {
-      const address = holding.principal;
-      const tokenId = parseInt(holding.value?.repr?.replace('u', '') || '0');
-
-      if (!holdersMap.has(address)) {
-        holdersMap.set(address, {
-          address,
-          tokenIds: [],
-          tokenCount: 0,
-          firstAcquired: holding.block_height,
-          lastActivity: holding.block_height,
-        });
-      }
-
-      const holder = holdersMap.get(address)!;
-      holder.tokenIds.push(tokenId);
-      holder.tokenCount++;
-    });
-
-    return Array.from(holdersMap.values());
+    // The server returns holders in the expected format
+    return (data.holders || []).map((holder: any) => ({
+      address: holder.address,
+      tokenIds: holder.tokenIds || [],
+      tokenCount: holder.tokenCount || 0,
+      firstAcquired: holder.firstAcquired,
+      lastActivity: holder.lastActivity,
+    }));
 
   } catch (error) {
     console.error('❌ Error fetching NFT holders:', error);
@@ -303,7 +273,7 @@ export const fetchIPFSMetadata = async (ipfsUri: string): Promise<any> => {
 };
 
 /**
- * Call read-only function on smart contract
+ * Call read-only function on smart contract (via Express Server)
  */
 const callContractFunction = async (
   contractId: string,
@@ -312,7 +282,7 @@ const callContractFunction = async (
 ): Promise<any> => {
   try {
     const [contractAddress, contractName] = contractId.split('.');
-    const url = `${HIRO_API_BASE}/v2/contracts/call-read/${contractAddress}/${contractName}/${functionName}`;
+    const url = `${SERVER_BASE}/api/hiro/contract/${contractAddress}/${contractName}/call-read/${functionName}`;
 
     // Convert args to proper Hiro API format
     // Hiro expects each argument as a hex-encoded Clarity value
@@ -329,13 +299,13 @@ const callContractFunction = async (
     });
 
     const requestBody = {
-      sender: contractAddress,
       arguments: clarityArgs,
+      sender: contractAddress,
     };
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: getHiroHeaders(),
+      headers: getServerHeaders(),
       body: JSON.stringify(requestBody),
     });
 
@@ -722,7 +692,6 @@ export const getTokenUri = async (contractId: string, tokenId: number = 1): Prom
         if (result?.result) {
           const uri = parseClarityValue(result.result);
           if (uri) {
-            console.log(`✅ Token URI (via ${funcName}): ${uri}`);
             return uri;
           }
         }
@@ -901,8 +870,6 @@ export const isEventCancelled = async (contractId: string): Promise<boolean> => 
  */
 export const getEventDataFromContract = async (contractId: string): Promise<any | null> => {
   try {
-    console.log('🔍 [getEventDataFromContract] Fetching data for:', contractId);
-    
     const [contractAddress, contractName] = contractId.split('.');
     
     // Use getNFTTicketDataWithStacks which now calls get-event-details
@@ -923,8 +890,6 @@ export const getEventDataFromContract = async (contractId: string): Promise<any 
         );
         
         if (deployedContract) {
-          console.log('📦 Using localStorage fallback data');
-          
           let metadata: any = deployedContract.metadata;
           if (!metadata && deployedContract.metadataUri) {
             metadata = await fetchIPFSMetadata(deployedContract.metadataUri);
@@ -959,8 +924,6 @@ export const getEventDataFromContract = async (contractId: string): Promise<any 
       
       return null;
     }
-
-    console.log('✅ [getEventDataFromContract] Got Stacks data:', stacksData);
 
     // Fetch metadata from IPFS if available
     let metadata: any = null;
@@ -1039,7 +1002,6 @@ export const getEventDataFromContract = async (contractId: string): Promise<any 
       metadata,
     };
     
-    console.log('📊 [getEventDataFromContract] Final event data:', eventData);
     return eventData;
 
   } catch (error) {
