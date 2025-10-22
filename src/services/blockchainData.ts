@@ -1,6 +1,7 @@
 /**
- * Blockchain Data Service (Updated to use Express Server)
- * Fetches real data from Stacks blockchain via server optimization
+ * Blockchain Data Service
+ * Fetches real data from Stacks blockchain
+ * Replaces all dummy/mock data with on-chain queries
  */
 
 import {
@@ -14,7 +15,6 @@ import { cachedFetch, requestManager } from '@/utils/requestManager';
 
 const TESTNET = StacksTestnet;
 const MAINNET = StacksMainnet;
-const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
 
 // Contract metadata storage (localStorage for now, can be replaced with backend)
 export interface DeployedContract {
@@ -225,26 +225,6 @@ export const fetchUserTransactions = async (
   userAddress: string,
   isTestnet: boolean = true
 ): Promise<any[]> => {
-  try {
-    // Try using the server endpoint first
-    const url = `${SERVER_BASE}/api/hiro/address/${userAddress}/transactions?limit=50`;
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.results || [];
-    } else {
-      console.log(`Server endpoint failed (${response.status}), falling back to direct API call`);
-    }
-  } catch (serverError) {
-    console.log('Server endpoint failed, falling back to direct API call:', serverError);
-  }
-
-  // Fallback to direct API call
   const apiUrl = isTestnet
     ? 'https://api.testnet.hiro.so'
     : 'https://api.hiro.so';
@@ -269,26 +249,6 @@ export const fetchSTXBalance = async (
   address: string,
   isTestnet: boolean = true
 ): Promise<number> => {
-  try {
-    // Try using the server endpoint first
-    const url = `${SERVER_BASE}/api/stacks/address/${address}/balance`;
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data.stx.balance_formatted || 0; // Return formatted balance from server
-    } else {
-      console.log(`Server endpoint failed (${response.status}), falling back to direct API call`);
-    }
-  } catch (serverError) {
-    console.log('Server endpoint failed, falling back to direct API call:', serverError);
-  }
-
-  // Fallback to direct API call
   const apiUrl = isTestnet
     ? 'https://api.testnet.hiro.so'
     : 'https://api.hiro.so';

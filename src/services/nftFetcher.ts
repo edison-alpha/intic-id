@@ -4,18 +4,13 @@
  * No dependency on registry contract - fully decentralized
  */
 
-import { callReadOnlyFunction, cvToValue } from '@stacks/transactions';
+import { callReadOnlyFunction, cvToValue, uintCV } from '@stacks/transactions';
 import { StacksTestnet, StacksMainnet } from '@stacks/network';
 
 const NETWORK = import.meta.env.VITE_STACKS_NETWORK || 'testnet';
 const network = NETWORK === 'mainnet' ? new StacksMainnet() : new StacksTestnet();
 
-const HIRO_API = import.meta.env.VITE_HIRO_API_URL || 'https://api.testnet.hiro.so';
-const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
-const HIRO_API_KEY = import.meta.env.VITE_HIRO_API_KEY;
-
-// Unified fallback image
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80';
+const HIRO_API = 'https://api.testnet.hiro.so';
 
 export interface UserNFT {
   contractId: string;
@@ -46,117 +41,62 @@ export async function fetchUserNFTHoldings(userAddress: string): Promise<UserNFT
   try {
     console.log('🔍 [NFTFetcher] Fetching NFTs for:', userAddress);
 
-    // Try server first for better caching and rate limit handling
-    try {
-      const serverUrl = `${SERVER_BASE}/api/hiro/nft/user/${userAddress}/holdings`;
-      console.log('  📡 Trying server:', serverUrl);
-      
-      const serverResponse = await fetch(serverUrl, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (serverResponse.ok) {
-        const serverData = await serverResponse.json();
-        console.log('✅ Got NFT holdings from server');
-        
-        // Transform server response if needed
-        if (serverData.nfts && Array.isArray(serverData.nfts)) {
-          return serverData.nfts;
-        }
-        // If server returns raw data, process it below
-        if (serverData.results) {
-          const data = serverData;
-          const nfts = processNFTHoldingsData(data);
-          return nfts;
-        }
-      } else {
-        console.log(`⚠️ Server returned ${serverResponse.status}, falling back to direct API`);
-      }
-    } catch (serverError) {
-      console.log('⚠️ Server unavailable, using direct Hiro API:', serverError);
-    }
-
-    // Fallback to direct Hiro API
     const url = `${HIRO_API}/extended/v1/tokens/nft/holdings?principal=${userAddress}&limit=200`;
-    
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (HIRO_API_KEY) {
-      headers['x-api-key'] = HIRO_API_KEY;
-    }
 
-    const response = await fetch(url, { headers });
+    const response = await fetch(url);
 
     if (!response.ok) {
       console.error('❌ Hiro API error:', response.status, response.statusText);
-      
-      // Handle rate limiting
-      if (response.status === 429) {
-        console.error('⚠️ Rate limited by Hiro API. Please wait and try again.');
-        throw new Error('Rate limited. Please try again in a few moments.');
-      }
-      
       return [];
     }
 
     const data = await response.json();
     console.log('📦 Raw NFT holdings:', data);
-    
-    return processNFTHoldingsData(data);
+
+    const nfts: UserNFT[] = [];
+
+    if (data.results && Array.isArray(data.results)) {
+      for (const item of data.results) {
+        try {
+          // Parse asset identifier: CONTRACT_ADDRESS.CONTRACT_NAME::ASSET_NAME
+          const assetId = item.asset_identifier;
+          const [contractPart, assetName] = assetId.split('::');
+          const [contractAddress, contractName] = contractPart.split('.');
+
+          // Extract token ID from value
+          const tokenId = parseInt(item.value?.repr?.replace('u', '') || '0');
+
+          // Only include NFTs with valid contract info
+          if (contractAddress && contractName && assetName) {
+            nfts.push({
+              contractId: `${contractAddress}.${contractName}`,
+              contractAddress,
+              contractName,
+              tokenId,
+              assetIdentifier: assetId,
+              owner: userAddress,
+            });
+
+            console.log(`  ✅ Found NFT: ${contractName} #${tokenId}`);
+          }
+        } catch (err) {
+          console.warn('⚠️ Error parsing NFT item:', err);
+        }
+      }
+    }
+
+    console.log(`✅ [NFTFetcher] Total NFTs found: ${nfts.length}`);
+    return nfts;
 
   } catch (error) {
     console.error('❌ [NFTFetcher] Error fetching NFTs:', error);
-    throw error; // Propagate error for better handling
+    return [];
   }
-}
-
-/**
- * Helper function to process NFT holdings data
- */
-function processNFTHoldingsData(data: any): UserNFT[] {
-  const nfts: UserNFT[] = [];
-
-  if (data.results && Array.isArray(data.results)) {
-    for (const item of data.results) {
-      try {
-        // Parse asset identifier: CONTRACT_ADDRESS.CONTRACT_NAME::ASSET_NAME
-        const assetId = item.asset_identifier;
-        const [contractPart, assetName] = assetId.split('::');
-        const [contractAddress, contractName] = contractPart.split('.');
-
-        // Extract token ID from value
-        const tokenId = parseInt(item.value?.repr?.replace('u', '') || '0');
-
-        // Only include NFTs with valid contract info
-        if (contractAddress && contractName && assetName) {
-          nfts.push({
-            contractId: `${contractAddress}.${contractName}`,
-            contractAddress,
-            contractName,
-            tokenId,
-            assetIdentifier: assetId,
-            owner: item.principal || '',
-          });
-
-          console.log(`  ✅ Found NFT: ${contractName} #${tokenId}`);
-        }
-      } catch (err) {
-        console.warn('⚠️ Error parsing NFT item:', err);
-      }
-    }
-  }
-
-  console.log(`✅ [NFTFetcher] Total NFTs found: ${nfts.length}`);
-  return nfts;
 }
 
 /**
  * Get event metadata from contract
- * Enhanced with retry logic for rate limit handling
+ * Enhanced with better error handling and fallbacks
  */
 export async function getEventMetadataFromContract(
   contractAddress: string,
@@ -173,30 +113,25 @@ export async function getEventMetadataFromContract(
     eventDate: null,
     eventTime: 'TBA',
     venue: null,
-    image: FALLBACK_IMAGE,
+    image: '/background-section1.png',
     description: 'Event ticket NFT',
     category: 'General',
     price: '0',
     priceFormatted: '0',
   };
 
-  // Retry logic for rate limiting
-  const MAX_RETRIES = 3;
-  let lastError: any = null;
-  
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      console.log(`  📋 Getting metadata from ${contractAddress}.${contractName}... (attempt ${attempt}/${MAX_RETRIES})`);
+  try {
+    console.log(`  📋 Getting metadata from ${contractAddress}.${contractName}...`);
 
-      // Call get-event-details function
-      const result = await callReadOnlyFunction({
-        contractAddress,
-        contractName,
-        functionName: 'get-event-details',
-        functionArgs: [],
-        senderAddress: contractAddress,
-        network,
-      });
+    // Call get-event-details function
+    const result = await callReadOnlyFunction({
+      contractAddress,
+      contractName,
+      functionName: 'get-event-details',
+      functionArgs: [],
+      senderAddress: contractAddress,
+      network,
+    });
 
     const eventDetails = cvToValue(result);
     console.log('  📋 Event details raw:', JSON.stringify(eventDetails, null, 2));
@@ -261,7 +196,7 @@ export async function getEventMetadataFromContract(
       extractValue(details?.image) ||
       extractValue(details?.imageUri) ||
       extractValue(details?.img) ||
-      FALLBACK_IMAGE
+      '/background-section1.png'
     );
 
     const description = String(
@@ -321,33 +256,14 @@ export async function getEventMetadataFromContract(
       priceFormatted,
     };
 
-      console.log('  ✅ Metadata compiled:', metadata);
-      return metadata;
+    console.log('  ✅ Metadata compiled:', metadata);
+    return metadata;
 
-    } catch (error: any) {
-      lastError = error;
-      
-      // Check if it's a rate limit error (429)
-      const errorMessage = error?.message || String(error);
-      const is429 = errorMessage.includes('429') || errorMessage.includes('rate limit');
-      
-      if (is429 && attempt < MAX_RETRIES) {
-        // Exponential backoff: 2s, 4s, 8s
-        const delay = Math.pow(2, attempt) * 1000;
-        console.warn(`  ⚠️ Rate limited (429), retrying in ${delay}ms... (attempt ${attempt}/${MAX_RETRIES})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue; // Retry
-      }
-      
-      // If not rate limit error or last attempt, break
-      console.warn(`  ⚠️ Error getting metadata for ${contractAddress}.${contractName}:`, error);
-      break;
-    }
+  } catch (error) {
+    console.warn(`  ⚠️ Error getting metadata for ${contractAddress}.${contractName}:`, error);
+    console.log('  🔄 Using fallback metadata');
+    return fallbackMetadata;
   }
-  
-  // If all retries failed, return fallback
-  console.log('  🔄 Using fallback metadata after retries');
-  return fallbackMetadata;
 }
 
 /**
@@ -496,15 +412,11 @@ export async function fetchNFTMintTransaction(
 
 /**
  * Main function: Get user's tickets with full metadata
- * OPTIMIZED: Uses normalized data store to reuse event data
+ * OpenSea/Rainbow style - direct indexer query
  */
 export async function getUserTicketsFromIndexer(userAddress: string) {
   try {
     console.log('🎫 [NFTFetcher] Starting ticket fetch for:', userAddress);
-
-    // Import dataStore and transformer (dynamic to avoid circular deps)
-    const { dataStore } = await import('./dataStore');
-    const { transformToNormalizedTicket } = await import('./dataTransformer');
 
     // Step 1: Get all NFTs owned by user
     const nfts = await fetchUserNFTHoldings(userAddress);
@@ -527,121 +439,63 @@ export async function getUserTicketsFromIndexer(userAddress: string) {
 
     console.log(`📊 NFTs grouped into ${nftsByContract.size} contracts`);
 
-    // Step 3: Build tickets using normalized data store (REUSE event data!)
+    // Step 3: Fetch metadata for each contract and build tickets
     const tickets: any[] = [];
-    const contractsToFetch: string[] = [];
 
-    // First pass: Check which events are NOT in store
-    for (const [contractId] of nftsByContract.entries()) {
-      const cachedEvent = dataStore.getEvent(contractId);
-      if (!cachedEvent) {
-        contractsToFetch.push(contractId);
-      } else {
-        console.log(`  💾 Event ${contractId} found in store - reusing!`);
-      }
-    }
-
-    // Fetch missing events with rate limit protection
-    if (contractsToFetch.length > 0) {
-      console.log(`  🔄 Fetching ${contractsToFetch.length} missing events...`);
-      
-      const BATCH_SIZE = 2; // Reduce to 2 parallel requests
-      const BATCH_DELAY = 1500; // 1.5s delay between batches
-      
-      for (let i = 0; i < contractsToFetch.length; i += BATCH_SIZE) {
-        const batch = contractsToFetch.slice(i, i + BATCH_SIZE);
-        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(contractsToFetch.length / BATCH_SIZE);
-        
-        console.log(`    📦 Batch ${batchNum}/${totalBatches}: Processing ${batch.length} events...`);
-        
-        await Promise.allSettled(
-          batch.map(async (contractId) => {
-            const parts = contractId.split('.');
-            const contractAddress = parts[0] || '';
-            const contractName = parts[1] || '';
-            
-            if (!contractAddress || !contractName) {
-              console.warn(`    ⚠️ Invalid contractId: ${contractId}`);
-              return;
-            }
-            
-            try {
-              const metadata = await getEventMetadataFromContract(contractAddress, contractName);
-              
-              // Store in dataStore using transformer
-              const { transformToNormalizedEvent } = await import('./dataTransformer');
-              const normalized = transformToNormalizedEvent(
-                { 
-                  contractAddress, 
-                  contractName, 
-                  eventId: 0, 
-                  isActive: true, 
-                  isFeatured: false, 
-                  isVerified: false,
-                  organizer: contractAddress,
-                  registeredAt: Date.now()
-                },
-                metadata
-              );
-              dataStore.setEvent(normalized);
-              console.log(`      ✅ Cached event: ${contractId}`);
-            } catch (err) {
-              console.warn(`      ⚠️ Could not fetch event ${contractId}:`, err);
-            }
-          })
-        );
-        
-        // Add delay between batches (except for last batch)
-        if (i + BATCH_SIZE < contractsToFetch.length) {
-          console.log(`      ⏳ Waiting ${BATCH_DELAY}ms before next batch...`);
-          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
-        }
-      }
-      
-      console.log(`  ✅ Finished fetching missing events`);
-    }
-
-    // Second pass: Create tickets using normalized transformer
     for (const [contractId, contractNFTs] of nftsByContract.entries()) {
       try {
-        console.log(`  🎫 Processing ${contractNFTs.length} tickets for ${contractId}`);
+        const [contractAddress, contractName] = contractId.split('.');
 
+        console.log(`  🎫 Processing contract: ${contractId} (${contractNFTs.length} NFTs)`);
+
+        // Get event metadata (always returns valid metadata, never null)
+        const metadata = await getEventMetadataFromContract(contractAddress, contractName);
+
+        // Create tickets for each NFT
         for (const nft of contractNFTs) {
-          // Use normalized transformer (reuses event from store)
-          const normalizedTicket = transformToNormalizedTicket(
-            contractId,
-            nft.tokenId,
-            userAddress
-          );
+          // Format event date safely
+          let formattedEventDate = 'TBA';
+          try {
+            if (metadata.eventDate) {
+              const date = new Date(metadata.eventDate);
+              if (!isNaN(date.getTime())) {
+                formattedEventDate = date.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                });
+              }
+            }
+          } catch (err) {
+            console.warn('    ⚠️ Error formatting date:', err);
+          }
 
-          // Try to fetch mint transaction
+          // Try to fetch mint transaction for this NFT
           let mintTxId = '';
           try {
             const mintTx = await fetchNFTMintTransaction(contractId, nft.tokenId);
             mintTxId = mintTx || '';
           } catch (err) {
-            // Silent fail for mint tx
+            console.warn(`    ⚠️ Could not fetch mint tx for token ${nft.tokenId}`);
           }
 
-          // Convert to component format (compatible with existing UI)
           const ticket = {
-            id: normalizedTicket.id,
-            tokenId: normalizedTicket.tokenId,
-            eventName: normalizedTicket.eventName,
-            eventDate: normalizedTicket.eventDate,
-            eventTime: normalizedTicket.eventTime,
-            location: normalizedTicket.location,
-            image: normalizedTicket.image,
-            ticketNumber: normalizedTicket.ticketNumber,
-            contractAddress: normalizedTicket.contractId.split('.')[0],
-            contractName: normalizedTicket.contractId.split('.')[1],
-            contractId: normalizedTicket.contractId,
-            status: normalizedTicket.status,
+            id: `${contractId}-${nft.tokenId}`,
+            tokenId: nft.tokenId,
+            eventName: String(metadata.eventName),
+            eventDate: String(formattedEventDate),
+            eventTime: String(metadata.eventTime),
+            location: String(metadata.venue || 'TBA'),
+            image: String(metadata.image || '/background-section1.png'),
+            ticketNumber: `#TKT-${nft.tokenId.toString().padStart(6, '0')}`,
+            contractAddress: String(contractAddress),
+            contractName: String(contractName),
+            contractId: String(contractId),
+            status: determineTicketStatus(metadata.eventDate),
             quantity: 1,
-            category: normalizedTicket.category,
-            price: normalizedTicket.price,
-            mintTxId: mintTxId,
+            category: String(metadata.category || 'General'),
+            price: String(metadata.priceFormatted || '0'),
+            mintTxId: mintTxId, // Transaction hash for Hiro Explorer
           };
 
           tickets.push(ticket);
@@ -649,6 +503,7 @@ export async function getUserTicketsFromIndexer(userAddress: string) {
         }
       } catch (err) {
         console.error(`  ❌ Error processing contract ${contractId}:`, err);
+        // Continue with next contract
       }
     }
 
@@ -660,13 +515,29 @@ export async function getUserTicketsFromIndexer(userAddress: string) {
     });
 
     console.log(`✅ [NFTFetcher] Total tickets created: ${tickets.length}`);
-    console.log(`📊 Data reuse: ${nftsByContract.size - contractsToFetch.length}/${nftsByContract.size} events from cache`);
-    
     return tickets;
 
   } catch (error) {
     console.error('❌ [NFTFetcher] Error in getUserTicketsFromIndexer:', error);
     return [];
+  }
+}
+
+/**
+ * Determine ticket status based on event date
+ */
+function determineTicketStatus(eventDate: string | null): 'active' | 'used' {
+  if (!eventDate) {
+    return 'active';
+  }
+
+  try {
+    const eventDateTime = new Date(eventDate).getTime();
+    const now = Date.now();
+
+    return eventDateTime > now ? 'active' : 'used';
+  } catch {
+    return 'active';
   }
 }
 

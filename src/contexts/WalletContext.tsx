@@ -264,7 +264,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         const amountInMicroSTX = Math.floor(amount * 1000000);
         const walletType = localStorage.getItem('wallet-type');
 
-        // For Xverse, use direct provider API
+        // For mobile Xverse, use direct provider API
         if (walletType === 'xverse' && window.XverseProviders?.StacksProvider) {
           console.log('🔄 Using Xverse provider for STX transfer');
           try {
@@ -286,59 +286,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             }
           } catch (providerError: any) {
             console.error('❌ Xverse provider error:', providerError);
-            // Continue to try other methods
-          }
-        }
-
-        // For Leather, use direct provider API
-        if (walletType === 'leather' && window.LeatherProvider) {
-          console.log('🔄 Using Leather provider for STX transfer');
-          try {
-            const response = await window.LeatherProvider.request('stx_transferStx', {
-              recipient,
-              amount: amountInMicroSTX.toString(),
-              memo: 'Transfer from Intic',
-            });
-
-            console.log('✅ Leather STX transfer response:', response);
-
-            if (response?.result?.txId || response?.result?.txid) {
-              const txId = response.result.txId || response.result.txid;
-              resolve(txId);
-              return;
-            } else if (typeof response === 'string') {
-              resolve(response);
-              return;
-            }
-          } catch (providerError: any) {
-            console.error('❌ Leather provider error:', providerError);
-            // Continue to try other methods
-          }
-        }
-
-        // For Hiro Wallet, use direct provider API
-        if (walletType === 'hiro' && window.HiroWalletProvider) {
-          console.log('🔄 Using Hiro Wallet provider for STX transfer');
-          try {
-            const response = await window.HiroWalletProvider.request('stx_transferStx', {
-              recipient,
-              amount: amountInMicroSTX.toString(),
-              memo: 'Transfer from Intic',
-            });
-
-            console.log('✅ Hiro Wallet STX transfer response:', response);
-
-            if (response?.result?.txId || response?.result?.txid) {
-              const txId = response.result.txId || response.result.txid;
-              resolve(txId);
-              return;
-            } else if (typeof response === 'string') {
-              resolve(response);
-              return;
-            }
-          } catch (providerError: any) {
-            console.error('❌ Hiro Wallet provider error:', providerError);
-            // Continue to try other methods
+            // Continue to try @stacks/connect as fallback
           }
         }
 
@@ -394,7 +342,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         const walletType = localStorage.getItem('wallet-type');
         console.log('📝 Deploying contract:', contractName, 'Wallet type:', walletType);
 
-        // For Xverse, use direct provider API
+        // For mobile Xverse, use direct provider API
         if (walletType === 'xverse' && window.XverseProviders?.StacksProvider) {
           console.log('🔄 Using Xverse provider for contract deployment');
           try {
@@ -417,65 +365,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             }
           } catch (providerError: any) {
             console.error('❌ Xverse provider error:', providerError);
-            // Continue to try other methods
+            // Continue to try @stacks/connect as fallback
           }
         }
 
-        // For Leather, use direct provider API
-        if (walletType === 'leather' && window.LeatherProvider) {
-          console.log('🔄 Using Leather provider for contract deployment');
-          try {
-            const response = await window.LeatherProvider.request('stx_deployContract', {
-              name: contractName,
-              clarityCode: code,
-              network: 'testnet',
-              postConditionMode: 'allow',
-            });
-
-            console.log('✅ Leather deployment response:', response);
-
-            if (response?.result?.txId || response?.result?.txid) {
-              const txId = response.result.txId || response.result.txid;
-              resolve(txId);
-              return;
-            } else if (typeof response === 'string') {
-              resolve(response);
-              return;
-            }
-          } catch (providerError: any) {
-            console.error('❌ Leather provider error:', providerError);
-            // Continue to try other methods
-          }
-        }
-
-        // For Hiro Wallet, use direct provider API
-        if (walletType === 'hiro' && window.HiroWalletProvider) {
-          console.log('🔄 Using Hiro Wallet provider for contract deployment');
-          try {
-            const response = await window.HiroWalletProvider.request('stx_deployContract', {
-              name: contractName,
-              clarityCode: code,
-              network: 'testnet',
-              postConditionMode: 'allow',
-            });
-
-            console.log('✅ Hiro Wallet deployment response:', response);
-
-            if (response?.result?.txId || response?.result?.txid) {
-              const txId = response.result.txId || response.result.txid;
-              resolve(txId);
-              return;
-            } else if (typeof response === 'string') {
-              resolve(response);
-              return;
-            }
-          } catch (providerError: any) {
-            console.error('❌ Hiro Wallet provider error:', providerError);
-            // Continue to try other methods
-          }
-        }
-
-        // Fallback to @stacks/connect (for desktop or if provider fails)
+        // Fallback to @stacks/connect (for desktop or if Xverse fails)
         console.log('🔄 Using @stacks/connect for contract deployment');
         openContractDeploy({
           contractName,
@@ -565,7 +459,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           walletType
         });
 
-        // For Xverse, use direct provider API
+        // For mobile Xverse, use direct provider API
         if (walletType === 'xverse' && window.XverseProviders?.StacksProvider) {
           console.log('🔄 Using Xverse provider for contract call');
           try {
@@ -595,79 +489,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             return;
           } catch (providerError: any) {
             console.error('❌ Xverse provider error:', providerError);
-            // Continue to try other methods
+            // Continue to try @stacks/connect as fallback
           }
         }
 
-        // For Leather, use direct provider API
-        if (walletType === 'leather' && window.LeatherProvider) {
-          console.log('🔄 Using Leather provider for contract call');
-          try {
-            // Serialize Clarity values to hex strings
-            const { serializeCV } = await import('@stacks/transactions');
-            const serializedArgs = params.functionArgs.map(arg => {
-              const serialized = serializeCV(arg);
-              return `0x${Buffer.from(serialized).toString('hex')}`;
-            });
-
-            const response = await window.LeatherProvider.request('stx_callContract', {
-              contract: `${params.contractAddress}.${params.contractName}`,
-              functionName: params.functionName,
-              functionArgs: serializedArgs,
-              network: 'testnet',
-              postConditionMode: 'allow',
-            });
-
-            console.log('✅ Leather contract call response:', response);
-
-            // Call the custom onFinish callback if provided
-            if (params.onFinish) {
-              params.onFinish(response);
-            }
-
-            resolve(response);
-            return;
-          } catch (providerError: any) {
-            console.error('❌ Leather provider error:', providerError);
-            // Continue to try other methods
-          }
-        }
-
-        // For Hiro Wallet, use direct provider API
-        if (walletType === 'hiro' && window.HiroWalletProvider) {
-          console.log('🔄 Using Hiro Wallet provider for contract call');
-          try {
-            // Serialize Clarity values to hex strings
-            const { serializeCV } = await import('@stacks/transactions');
-            const serializedArgs = params.functionArgs.map(arg => {
-              const serialized = serializeCV(arg);
-              return `0x${Buffer.from(serialized).toString('hex')}`;
-            });
-
-            const response = await window.HiroWalletProvider.request('stx_callContract', {
-              contract: `${params.contractAddress}.${params.contractName}`,
-              functionName: params.functionName,
-              functionArgs: serializedArgs,
-              network: 'testnet',
-              postConditionMode: 'allow',
-            });
-
-            console.log('✅ Hiro Wallet contract call response:', response);
-
-            // Call the custom onFinish callback if provided
-            if (params.onFinish) {
-              params.onFinish(response);
-            }
-
-            resolve(response);
-            return;
-          } catch (providerError: any) {
-            console.error('❌ Hiro Wallet provider error:', providerError);
-            // Continue to try other methods
-          }
-        }
-
-        // Fallback to @stacks/connect (for wallets that don't support direct provider API)
+        // Fallback to @stacks/connect (for desktop or if Xverse fails)
         console.log('🔄 Using @stacks/connect for contract call');
         openContractCall({
           contractAddress: params.contractAddress,

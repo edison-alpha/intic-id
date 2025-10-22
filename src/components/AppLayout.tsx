@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { safeToFixed } from "../utils/formatNumber";
 import {
   Ticket,
   PlusCircle,
@@ -25,7 +24,6 @@ import stxLogo from '../assets/stx.jpg';
 import { useWallet } from "@/contexts/WalletContext";
 import { WalletConnectModal } from "@/components/WalletConnectModal";
 import { getFullProfile, type FullProfile } from "@/services/profileService";
-import { useBalance } from "@/hooks/useApiCache";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -40,13 +38,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+  const [balance, setBalance] = useState<number | null>(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [userProfile, setUserProfile] = useState<FullProfile | null>(null);
 
   // Wallet integration
-  const { wallet, isWalletConnected, disconnectWallet } = useWallet();
-  
-  // Use React Query for balance - will cache and persist across pages
-  const { data: balance, isLoading: isLoadingBalance } = useBalance(wallet?.address);
+  const { wallet, isWalletConnected, disconnectWallet, getBalance } = useWallet();
 
   const menuItems = [
     { path: "/app", icon: Home, label: "Browse Events", exact: true },
@@ -78,12 +75,44 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Determine if sidebar should be expanded
   const isSidebarExpanded = !isSidebarCollapsed || (isHovering && !isPermanentExpanded);
 
+  // Fetch balance when wallet is connected
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (isWalletConnected && wallet) {
+        setIsLoadingBalance(true);
+        try {
+          const bal = await getBalance();
+          setBalance(bal);
+        } catch (error) {
+          console.error('Error fetching balance:', error);
+          setBalance(0);
+        } finally {
+          setIsLoadingBalance(false);
+        }
+      } else {
+        setBalance(null);
+      }
+    };
+
+    fetchBalance();
+
+    // Refresh balance every 30 seconds
+    const interval = setInterval(fetchBalance, 30000);
+
+    return () => clearInterval(interval);
+  }, [isWalletConnected, wallet, getBalance]);
+
   // Fetch user profile when wallet is connected
   useEffect(() => {
     const fetchProfile = async () => {
       if (isWalletConnected && wallet?.address) {
         try {
           const profile = await getFullProfile(wallet.address);
+          console.log('👤 AppLayout - Profile loaded:', {
+            username: profile.username,
+            hasAvatar: !!profile.avatar,
+            avatarPreview: profile.avatar?.substring(0, 50) + '...'
+          });
           setUserProfile(profile);
         } catch (error) {
           console.error('Error fetching profile:', error);
@@ -95,9 +124,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     fetchProfile();
 
-    // Refresh profile every 5 minutes (reduced from 60s to reduce API calls)
-    // Cache handles freshness, so less frequent polling is fine
-    const interval = setInterval(fetchProfile, 5 * 60 * 1000);
+    // Refresh profile every 60 seconds
+    const interval = setInterval(fetchProfile, 60000);
 
     return () => clearInterval(interval);
   }, [isWalletConnected, wallet?.address]);
@@ -255,7 +283,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                       <NavLink
                         key={index}
                         to={item.path}
-                        onClick={() => {
+                        onClick={(e) => {
+                          console.log('Desktop Expanded - Navigating to:', item.path);
                           setIsDropdownOpen(false);
                         }}
                         className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition-colors text-gray-300 hover:text-white border-b border-gray-800 last:border-b-0"
@@ -298,7 +327,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                       <NavLink
                         key={index}
                         to={item.path}
-                        onClick={() => {
+                        onClick={(e) => {
+                          console.log('Desktop Collapsed - Navigating to:', item.path);
                           setIsDropdownOpen(false);
                         }}
                         className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition-colors text-gray-300 hover:text-white border-b border-gray-800 last:border-b-0"
@@ -345,7 +375,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                   ) : (
                     <>
                       <span className="font-semibold">
-                        {safeToFixed(balance, 4, '0.0000')}
+                        {balance !== null ? balance.toFixed(4) : '0.0000'}
                       </span>
                       <img
                         src={stxLogo}
@@ -485,7 +515,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                       ) : (
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-semibold text-[#FE5C02]">
-                            {safeToFixed(balance, 4, '0.0000')}
+                            {balance !== null ? balance.toFixed(4) : '0.0000'}
                           </span>
                           <img
                             src={stxLogo}
@@ -505,7 +535,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                     <NavLink
                       key={index}
                       to={item.path}
-                      onClick={() => {
+                      onClick={(e) => {
+                        console.log('Mobile - Navigating to:', item.path);
                         setIsDropdownOpen(false);
                       }}
                       className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-800 active:bg-gray-700 transition-colors text-gray-300 hover:text-white border-b border-gray-800 last:border-b-0"

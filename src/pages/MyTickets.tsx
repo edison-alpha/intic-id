@@ -5,9 +5,9 @@ import { Calendar, MapPin, QrCode, Search, Filter, Wallet, RefreshCw, Bell, Mail
 import { Link } from "react-router-dom";
 import TicketQRModal from "@/components/TicketQRModal";
 import AddToCalendar from "@/components/AddToCalendar";
+import { getUserTicketsFromIndexerCached, clearNFTCache } from '@/services/nftFetcher';
 import { useWallet } from '@/contexts/WalletContext';
 import { toast } from 'sonner';
-import { useUserTickets } from '@/hooks/useApiCache';
 import {
   getEventsNeedingReminders,
   scheduleEventReminder,
@@ -19,19 +19,16 @@ import { getStoredEmail, storeEmail } from '@/services/ticketPurchaseNotificatio
 const MyTickets = () => {
   const { wallet } = useWallet();
   const userAddress = wallet?.address;
-  
-  // Use React Query for tickets - cached and optimized
-  const { data: ticketsData, isLoading, error, refetch } = useUserTickets(userAddress);
-  const tickets = ticketsData?.tickets || [];
-  
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [upcomingReminders, setUpcomingReminders] = useState<EventReminder[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
   // Use automatic event reminders hook
   useEventReminders(tickets, !!userEmail);
@@ -55,12 +52,18 @@ const MyTickets = () => {
   };
 
   useEffect(() => {
+    if (userAddress) {
+      loadUserTickets(userAddress);
+    } else {
+      setLoading(false);
+    }
+
     // Load saved email from localStorage (using unified storage)
     const savedEmail = getStoredEmail();
     if (savedEmail) {
       setUserEmail(savedEmail);
     }
-  }, []);
+  }, [userAddress]);
 
   useEffect(() => {
     // Check for upcoming events that need reminders
@@ -70,26 +73,56 @@ const MyTickets = () => {
     }
   }, [tickets, userEmail]);
 
-  useEffect(() => {
-    if (error) {
+  const loadUserTickets = async (address: string) => {
+    try {
+      setLoading(true);
+      console.log('📋 [MyTickets] Loading tickets for user:', address);
+
+      const startTime = Date.now();
+      const userTickets = await getUserTicketsFromIndexerCached(address);
+      const loadTime = Date.now() - startTime;
+
+      console.log(`✅ [MyTickets] Loaded ${userTickets.length} tickets in ${loadTime}ms`);
+      console.table(userTickets.map(t => ({
+        Event: t.eventName,
+        Date: t.eventDate,
+        Location: t.location,
+        Status: t.status,
+        TokenId: t.tokenId
+      })));
+
+      setTickets(userTickets);
+
+      if (userTickets.length > 0) {
+        console.log(`✅ [MyTickets] Found ${userTickets.length} ticket${userTickets.length > 1 ? 's' : ''} in ${(loadTime / 1000).toFixed(1)}s`);
+      } else {
+        console.warn('⚠️ [MyTickets] No tickets found for this user');
+        toast.info('No tickets found', {
+          description: 'Purchase tickets from events to see them here'
+        });
+      }
+    } catch (error) {
+      console.error('❌ [MyTickets] Error loading tickets:', error);
       toast.error('Failed to load tickets', {
         description: error instanceof Error ? error.message : 'Unknown error'
       });
+      setTickets([]);
+    } finally {
+      setLoading(false);
     }
-  }, [error]);
+  };
 
   const handleRefresh = async () => {
     if (!userAddress) return;
     setRefreshing(true);
-    
-    try {
-      await refetch();
-      toast.success('Tickets refreshed successfully');
-    } catch (err) {
-      toast.error('Failed to refresh tickets');
-    } finally {
-      setRefreshing(false);
-    }
+
+    // Clear cache to force fresh data from blockchain
+    clearNFTCache(userAddress);
+    console.log('🗑️ Cache cleared, fetching fresh data from blockchain...');
+
+    await loadUserTickets(userAddress);
+    setRefreshing(false);
+    toast.success('Tickets refreshed from blockchain');
   };
 
   const handleSetupEmailReminders = async () => {
@@ -188,7 +221,7 @@ const MyTickets = () => {
                 </button>
                 <button
                   onClick={handleRefresh}
-                  disabled={refreshing || isLoading}
+                  disabled={refreshing || loading}
                   className="p-3 bg-[#1A1A1A] border border-gray-800 rounded-xl hover:border-[#FE5C02] transition-colors disabled:opacity-50"
                   title="Refresh tickets"
                 >
@@ -269,7 +302,7 @@ const MyTickets = () => {
         </div>
 
         {/* No Wallet Connected */}
-        {!userAddress && !isLoading ? (
+        {!userAddress && !loading ? (
           <div className="text-center py-12 md:py-16 bg-[#1A1A1A] border border-gray-800 rounded-3xl md:rounded-2xl">
             <div className="w-16 h-16 md:w-20 md:h-20 bg-[#0A0A0A] rounded-full flex items-center justify-center mx-auto mb-4">
               <Wallet className="w-8 h-8 md:w-10 md:h-10 text-[#FE5C02]" />
@@ -277,7 +310,7 @@ const MyTickets = () => {
             <h3 className="text-lg md:text-xl font-semibold text-white mb-2">Connect Your Wallet</h3>
             <p className="text-sm md:text-base text-gray-400 mb-6">Connect your Stacks wallet to view your NFT tickets</p>
           </div>
-        ) : isLoading ? (
+        ) : loading ? (
           /* Loading Skeleton */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {[1, 2, 3].map((i) => (
@@ -291,7 +324,7 @@ const MyTickets = () => {
               </div>
             ))}
           </div>
-        ) : tickets.length === 0 && !isLoading ? (
+        ) : tickets.length === 0 && !loading ? (
           /* No tickets at all - show helpful message */
           <div className="text-center py-12 md:py-16 bg-[#1A1A1A] border border-gray-800 rounded-3xl md:rounded-2xl">
             <div className="w-16 h-16 md:w-20 md:h-20 bg-[#0A0A0A] rounded-full flex items-center justify-center mx-auto mb-4">

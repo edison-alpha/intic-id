@@ -5,14 +5,12 @@ import { Calendar, MapPin, Users, ArrowRight, Loader2, CheckCircle } from "lucid
 import { Link } from "react-router-dom";
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { useWallet } from '@/contexts/WalletContext';
-import { getAllRegistryEvents } from '@/services/registryService';
+import { callReadOnlyFunction, cvToJSON } from '@stacks/transactions';
+import { StacksTestnet } from '@stacks/network';
+import { getAllRegistryEvents, getFeaturedEvents } from '@/services/registryService';
 import { BrowseEventsSkeleton } from '@/components/EventSkeletons';
-import { bulkLoadEvents } from '@/services/dataTransformer';
 import { getEventDataFromContract } from '@/services/nftIndexer';
 import stxLogo from '@/assets/stx.jpg';
-
-// Unified fallback image
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80';
 
 const BrowseEvents = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,7 +50,7 @@ const BrowseEvents = () => {
     { id: "theater", label: "Theater" }
   ];
 
-  // Events from blockchain - Load from Registry V2 with Normalized Data Store
+  // Events from blockchain - Load from Registry V2
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -61,58 +59,137 @@ const BrowseEvents = () => {
       setLoading(true);
       try {
         // Get all registered events from Registry V2
+  
         const registryEvents = await getAllRegistryEvents();
+        console.log(`� Found ${registryEvents.length} registered events in registry`);
 
-        if (registryEvents.length === 0) {
-          setEvents([]);
-          setLoading(false);
-          return;
-        }
+        // Fetch all event data in parallel
+        const eventPromises = registryEvents.filter(e => e.isActive).map(async (registryEvent) => {
+          try {
+            let address = registryEvent.contractAddress;
+            let name = registryEvent.contractName;
+            if (address.includes('.')) {
+              [address, name] = address.split('.');
+            }
+            
+            // Use getEventDataFromContract like EventDetail.tsx does
+            const eventData = await getEventDataFromContract(`${address}.${name}`);
+            
+            if (!eventData) {
+              console.warn(`⚠️ Could not load event data for ${address}.${name}`);
+              return {
+                id: `${registryEvent.contractAddress}.${registryEvent.contractName}`,
+                eventId: registryEvent.eventId,
+                title: registryEvent.contractName.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80',
+                date: 'Date TBA',
+                time: 'TBA',
+                location: 'Venue TBA',
+                description: 'Event details coming soon',
+                category: 'event',
+                price: 'TBA',
+                priceInMicroSTX: 0,
+                available: 0,
+                total: 0,
+                minted: 0,
+                featured: registryEvent.isFeatured,
+                verified: registryEvent.isVerified,
+                earlyAccess: false,
+                isActive: registryEvent.isActive,
+                isCancelled: false,
+                contractAddress: registryEvent.contractAddress,
+                contractName: registryEvent.contractName,
+                tokenUri: '',
+              };
+            }
 
-        // Use bulk load with normalized data store (SINGLE LOAD + REUSE)
-        const normalizedEvents = await bulkLoadEvents(
-          registryEvents,
-          getEventDataFromContract
-        );
+            const price = eventData.price || 0;
+            const supply = eventData.totalSupply || 0;
+            const sold = eventData.minted || 0;
+            const remaining = eventData.available || 0;
+            const cancelled = eventData.isCancelled || false;
+            const eventDate = eventData.eventDate || 0;
 
-        // Transform normalized events to component format
-        const transformedEvents = normalizedEvents
-          .filter(e => e.isCancelled !== true) // Only filter out cancelled events
-          .map(event => ({
-            id: event.id,
-            eventId: event.id,
-            title: event.eventName,
-            image: event.image || FALLBACK_IMAGE,
-            date: event.eventDate ? new Date(event.eventDate).toLocaleDateString() : 'Date TBA',
-            time: event.eventTime,
-            location: event.venue,
-            description: event.description || 'NFT Event Ticket',
-            category: event.category,
-            price: event.priceFormatted,
-            priceInMicroSTX: Number(event.price),
-            available: event.remaining,
-            total: event.totalSupply,
-            minted: event.minted,
-            featured: event.isFeatured,
-            verified: event.isVerified,
-            earlyAccess: false,
-            isActive: event.isActive,
-            isCancelled: event.isCancelled,
-            contractAddress: event.contractAddress,
-            contractName: event.contractName,
-            tokenUri: '',
-          }));
+            // Extract venue information from eventData
+            const venue = eventData.venue || eventData.venueAddress || 'Event Venue';
+            
+            // Extract image from eventData
+            const imageUrl = eventData.image || eventData.imageUri || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80';
 
-        setEvents(transformedEvents);
-
+            const formattedDate = eventDate > 0 ? new Date(Number(eventDate)).toLocaleDateString() : 'Date TBA';
+            const formattedTime = eventDate > 0 ? new Date(Number(eventDate)).toLocaleTimeString() : 'TBA';
+            const nameParts = name.split('-');
+            const eventTitle = nameParts.slice(0, -1).join(' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+            const now = Date.now();
+            const isEventInFuture = eventDate === 0 || Number(eventDate) > now;
+            const hasTickets = Number(remaining) > 0;
+            const isEventActive = !cancelled && hasTickets && isEventInFuture;
+            
+            return {
+              id: `${address}.${name}`,
+              eventId: registryEvent.eventId,
+              title: eventTitle || name.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+              image: imageUrl,
+              date: formattedDate,
+              time: formattedTime,
+              location: venue,
+              description: 'NFT Event Ticket',
+              category: 'event',
+              price: eventData.priceFormatted || (() => {
+                const priceInSTX = Number(price) / 1000000;
+                // Format the price to remove unnecessary trailing zeros
+                return parseFloat(priceInSTX.toFixed(6)).toString().replace(/\.?0+$/, '');
+              })(),
+              priceInMicroSTX: Number(eventData.price) || Number(price),
+              available: Number(remaining),
+              total: Number(supply),
+              minted: Number(sold),
+              featured: registryEvent.isFeatured,
+              verified: registryEvent.isVerified,
+              earlyAccess: false,
+              isActive: isEventActive,
+              isCancelled: cancelled,
+              contractAddress: address,
+              contractName: name,
+              tokenUri: eventData.tokenUri || '',
+            };
+          } catch (err) {
+            console.warn(`⚠️ Could not load contract: ${registryEvent.contractAddress}.${registryEvent.contractName}`, err);
+            return {
+              id: `${registryEvent.contractAddress}.${registryEvent.contractName}`,
+              eventId: registryEvent.eventId,
+              title: registryEvent.contractName.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+              image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80',
+              date: 'Date TBA',
+              time: 'TBA',
+              location: 'Venue TBA',
+              description: 'Event details coming soon',
+              category: 'event',
+              price: 'TBA',
+              priceInMicroSTX: 0,
+              available: 0,
+              total: 0,
+              minted: 0,
+              featured: registryEvent.isFeatured,
+              verified: registryEvent.isVerified,
+              earlyAccess: false,
+              isActive: registryEvent.isActive,
+              isCancelled: false,
+              contractAddress: registryEvent.contractAddress,
+              contractName: registryEvent.contractName,
+              tokenUri: '',
+            };
+          }
+        });
+        const allEvents = await Promise.all(eventPromises);
+        console.log('✅ Total events loaded:', allEvents.length);
+        setEvents(allEvents);
       } catch (error) {
         console.error('❌ Error loading events:', error);
-        setEvents([]);
       } finally {
         setLoading(false);
       }
     };
-
     loadEvents();
   }, []);
 

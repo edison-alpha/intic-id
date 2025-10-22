@@ -1,14 +1,21 @@
 /**
- * Hiro Indexer Service (Updated to use Express Server)
- * Uses Express Server to cache and optimize Hiro API calls
+ * Hiro Indexer Service
+ * Uses Hiro API for contract history, status, and transaction indexing
  */
 
-const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
+const HIRO_API_KEY = import.meta.env.VITE_HIRO_API_KEY;
+const HIRO_API_BASE = 'https://api.testnet.hiro.so';
 
-const getServerHeaders = (): HeadersInit => {
-  return {
+const getHiroHeaders = (): HeadersInit => {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+  
+  if (HIRO_API_KEY) {
+    headers['x-api-key'] = HIRO_API_KEY;
+  }
+  
+  return headers;
 };
 
 // Contract Information
@@ -100,7 +107,7 @@ export const getContractInfo = async (contractId: string): Promise<ContractInfo 
       return null;
     }
 
-    const url = `${SERVER_BASE}/api/hiro/contract/${contractId}`;
+    const url = `${HIRO_API_BASE}/v2/contracts/by_id/${address}/${name}`;
     
     // Add timeout to prevent hanging
     const controller = new AbortController();
@@ -108,7 +115,7 @@ export const getContractInfo = async (contractId: string): Promise<ContractInfo 
     
     try {
       const response = await fetch(url, {
-        headers: getServerHeaders(),
+        headers: getHiroHeaders(),
         signal: controller.signal,
       });
       
@@ -145,9 +152,9 @@ export const getContractInfo = async (contractId: string): Promise<ContractInfo 
 export const getTransactionStatus = async (txId: string): Promise<TransactionStatus | null> => {
   try {
     const response = await fetch(
-      `${SERVER_BASE}/api/hiro/transaction/${txId}`,
+      `${HIRO_API_BASE}/extended/v1/tx/${txId}`,
       {
-        headers: getServerHeaders(),
+        headers: getHiroHeaders(),
       }
     );
 
@@ -171,10 +178,11 @@ export const getContractTransactions = async (
   offset: number = 0
 ): Promise<ContractHistory> => {
   try {
+    const [address, name] = contractId.split('.');
     const response = await fetch(
-      `${SERVER_BASE}/api/hiro/contract/${contractId}/transactions?limit=${limit}&offset=${offset}`,
+      `${HIRO_API_BASE}/extended/v1/contract/${address}.${name}/transactions?limit=${limit}&offset=${offset}`,
       {
-        headers: getServerHeaders(),
+        headers: getHiroHeaders(),
       }
     );
 
@@ -203,10 +211,11 @@ export const getContractEvents = async (
   offset: number = 0
 ): Promise<{ limit: number; offset: number; total: number; results: ContractEvent[] }> => {
   try {
+    const [address, name] = contractId.split('.');
     const response = await fetch(
-      `${SERVER_BASE}/api/hiro/contract/${contractId}/events?limit=${limit}&offset=${offset}`,
+      `${HIRO_API_BASE}/extended/v1/contract/${address}.${name}/events?limit=${limit}&offset=${offset}`,
       {
-        headers: getServerHeaders(),
+        headers: getHiroHeaders(),
       }
     );
 
@@ -236,9 +245,9 @@ export const getAddressTransactions = async (
 ): Promise<ContractHistory> => {
   try {
     const response = await fetch(
-      `${SERVER_BASE}/api/hiro/address/${address}/transactions?limit=${limit}&offset=${offset}`,
+      `${HIRO_API_BASE}/extended/v1/address/${address}/transactions?limit=${limit}&offset=${offset}`,
       {
-        headers: getServerHeaders(),
+        headers: getHiroHeaders(),
       }
     );
 
@@ -300,11 +309,21 @@ export const getContractDeploymentsByAddress = async (
       };
     }
     
-    const url = `${SERVER_BASE}/api/hiro/address/${address}/deployments?limit=${limit}&offset=${offset}`;
+    // Try using v2 API endpoint first which is more stable
+    let url = `${HIRO_API_BASE}/extended/v2/addresses/${address}/transactions`;
     
-    const response = await fetch(url, {
-      headers: getServerHeaders(),
+    let response = await fetch(url, {
+      headers: getHiroHeaders(),
     });
+
+    // If V2 fails, fallback to V1
+    if (!response.ok) {
+      url = `${HIRO_API_BASE}/extended/v1/address/${address}/transactions?limit=${limit}&offset=${offset}`;
+      
+      response = await fetch(url, {
+        headers: getHiroHeaders(),
+      });
+    }
 
     if (!response.ok) {
       console.error('❌ API Response not OK:', response.status, response.statusText);
@@ -322,9 +341,45 @@ export const getContractDeploymentsByAddress = async (
 
     const data = await response.json();
 
+    // Log first transaction to see structure
+    // V2 API has different structure - tx_type is inside tx object
+    const txTypes: { [key: string]: number } = {};
+    data.results?.forEach((item: any) => {
+      const type = item.tx?.tx_type || 'unknown';
+      txTypes[type] = (txTypes[type] || 0) + 1;
+    });
+
+    // Filter and format contract deployments
+    // In V2 API, structure is different: { tx: { tx_type, smart_contract }, ... }
+    const contractDeployments = (data.results || [])
+      .filter((item: any) => {
+        const tx = item.tx;
+        const isSmartContract = tx?.tx_type === 'smart_contract';
+        if (isSmartContract) {
+        }
+        return isSmartContract;
+      })
+      .map((item: any) => {
+        const tx = item.tx;
+        const contractId = tx.smart_contract?.contract_id || `${tx.sender_address}.unknown`;
+        const contractName = contractId.split('.')[1] || 'unknown';
+        
+        return {
+          tx_id: tx.tx_id,
+          contract_id: contractId,
+          tx_status: tx.tx_status,
+          block_height: tx.block_height,
+          burn_block_time: tx.burn_block_time,
+          burn_block_time_iso: tx.burn_block_time_iso,
+          canonical: tx.canonical,
+          contract_name: contractName,
+          source_code: tx.smart_contract?.source_code,
+        };
+      });
+
     return {
-      total: data.total,
-      results: data.results,
+      total: contractDeployments.length,
+      results: contractDeployments,
     };
   } catch (error) {
     console.error('❌ Error fetching contract deployments:', error);
@@ -412,7 +467,7 @@ export const indexAllContractsByAddress = async (
 };
 
 /**
- * Call read-only contract function via Hiro API (using Express Server)
+ * Call read-only contract function via Hiro API
  */
 export const callContractReadOnly = async (
   contractAddress: string,
@@ -423,13 +478,13 @@ export const callContractReadOnly = async (
 ): Promise<any> => {
   try {
     const response = await fetch(
-      `${SERVER_BASE}/api/hiro/contract/${contractAddress}/${contractName}/call-read/${functionName}`,
+      `${HIRO_API_BASE}/v2/contracts/call-read/${contractAddress}/${contractName}/${functionName}`,
       {
         method: 'POST',
-        headers: getServerHeaders(),
+        headers: getHiroHeaders(),
         body: JSON.stringify({
-          arguments: functionArgs,
           sender: sender || contractAddress,
+          arguments: functionArgs,
         }),
       }
     );
@@ -453,10 +508,20 @@ export const getMempoolTransactions = async (
   limit: number = 50
 ): Promise<ContractTransaction[]> => {
   try {
-    // Mempool transactions endpoint might not be implemented in server yet
-    // For now, return empty array until server is updated
-    console.warn('getMempoolTransactions is not yet implemented in the server');
-    return [];
+    const url = address
+      ? `${HIRO_API_BASE}/extended/v1/tx/mempool?sender_address=${address}&limit=${limit}`
+      : `${HIRO_API_BASE}/extended/v1/tx/mempool?limit=${limit}`;
+
+    const response = await fetch(url, {
+      headers: getHiroHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch mempool transactions: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.results || [];
   } catch (error) {
     console.error('Error fetching mempool transactions:', error);
     return [];

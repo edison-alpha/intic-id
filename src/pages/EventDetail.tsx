@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -49,12 +49,12 @@ const EventDetail = () => {
       
       // Check if ID is numeric (registry event ID) or contract address
       if (/^\d+$/.test(decodedContractId)) {
-
+        console.log('📋 [EventDetail] Loading from Registry V2 - Event ID:', decodedContractId);
         const eventId = parseInt(decodedContractId);
         regData = await getRegistryEvent(eventId);
         
         if (regData) {
-
+          console.log('✅ [EventDetail] Registry data:', regData);
           contractId = `${regData.contractAddress}.${regData.contractName}`;
           setRegistryData(regData);
         } else {
@@ -73,7 +73,7 @@ const EventDetail = () => {
         return;
       }
 
-
+      console.log('📊 [EventDetail] Raw event data:', eventData);
 
       // Map eventData to UI fields
       const priceMicro = eventData.price || 0;
@@ -93,19 +93,19 @@ const EventDetail = () => {
       
       // Parse venue coordinates (format: "lat,lng" or "-6.2203380,106.8057496")
       const venueCoords = eventData.venueCoordinates || '';
-
+      console.log('🗺️ [EventDetail] Venue coordinates from data:', venueCoords);
       
       let latitude = 0;
       let longitude = 0;
       if (venueCoords && venueCoords.includes(',')) {
         const [lat, lng] = venueCoords.split(',').map((coord: string) => parseFloat(coord.trim()));
-
+        console.log('🗺️ [EventDetail] Parsed lat/lng:', { lat, lng });
         if (!isNaN(lat) && !isNaN(lng)) {
           latitude = lat;
           longitude = lng;
         }
       }
-
+      console.log('🗺️ [EventDetail] Final coordinates:', { latitude, longitude });
 
       const eventState = {
         id: contractId,
@@ -138,7 +138,7 @@ const EventDetail = () => {
         tokenUri: eventData.tokenUri || '',
       };
 
-
+      console.log('✅ [EventDetail] Final event state:', eventState);
       setEvent(eventState);
     } catch (error) {
       toast.error('Failed to load event details');
@@ -246,7 +246,7 @@ const EventDetail = () => {
                       )}
                       {event.featured && (
                         <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-400">
-                          ? Featured
+                          ⭐ Featured
                         </Badge>
                       )}
                     </div>
@@ -331,7 +331,7 @@ const EventDetail = () => {
                   <div className="border-t border-gray-800 mt-6 pt-6">
                     <div className="bg-yellow-900/20 border border-yellow-600/30 rounded-lg p-4">
                       <h4 className="text-sm font-semibold text-yellow-500 mb-2">
-                        ??? Map Preview Unavailable
+                        🗺️ Map Preview Unavailable
                       </h4>
                       <p className="text-xs text-gray-400 mb-2">
                         Venue coordinates not available for this event.

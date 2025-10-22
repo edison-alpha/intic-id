@@ -1,6 +1,7 @@
 /**
- * Event Registry V2 Service (Updated to use Express Server)
- * Fetches registered contract addresses from registry via server optimization
+ * Event Registry V2 Service
+ * Fetches registered contract addresses from registry
+ * Details are then fetched from individual contracts via indexer
  */
 
 import { cvToJSON, hexToCV, uintCV, serializeCV } from '@stacks/transactions';
@@ -8,7 +9,6 @@ import { getRegistryContract } from '@/config/contracts';
 import { requestManager } from '@/utils/requestManager';
 
 const NETWORK_URL = 'https://api.testnet.hiro.so';
-const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
 
 /**
  * Registry Event Entry (minimal data from V2)
@@ -152,6 +152,8 @@ export async function getRegistryEventsRange(
     const result = await callRegistryReadOnly('get-events-range', [startArg, endArg]);
     const parsed = parseCV(result);
 
+    console.log(`📦 get-events-range(${startId}, ${endId}) raw response:`, JSON.stringify(parsed, null, 2));
+
     // Response structure: { type: 'ok', value: { type: 'tuple', value: { start, end, events } } }
     if (!parsed?.value) {
       console.warn('No value in response');
@@ -160,6 +162,7 @@ export async function getRegistryEventsRange(
 
     // Access the tuple's value property (not data)
     const tupleValue = parsed.value.value || parsed.value;
+    console.log('Tuple value:', tupleValue);
 
     // Get the events field from tuple value
     const eventsField = tupleValue.events;
@@ -175,6 +178,8 @@ export async function getRegistryEventsRange(
       return [];
     }
 
+    console.log(`Found ${eventsList.length} items in events list`);
+
     const events: RegistryEvent[] = [];
 
     // Each item in the list is: { type: '(optional ...)', value: {...} } or { type: '(optional none)', value: null }
@@ -186,6 +191,7 @@ export async function getRegistryEventsRange(
         // item.value is another tuple with type and value
         const eventTuple = item.value;
         const eventData = eventTuple.value || eventTuple;
+        console.log(`Event ${i} data:`, eventData);
 
         try {
           const event: RegistryEvent = {
@@ -202,13 +208,17 @@ export async function getRegistryEventsRange(
           // Only add active events with valid contract address
           if (event.isActive && event.contractAddress) {
             events.push(event);
+            console.log(`✅ Added event ${event.eventId}: ${event.contractAddress}.${event.contractName}`);
           }
         } catch (err) {
           console.warn(`Failed to parse event at index ${i}:`, err);
         }
+      } else {
+        console.log(`Item ${i} is none (no event at this ID)`);
       }
     }
 
+    console.log(`✅ Parsed ${events.length} active events from range ${startId}-${endId}`);
     return events;
   } catch (error) {
     console.error(`Error getting events range ${startId}-${endId}:`, error);
@@ -217,36 +227,17 @@ export async function getRegistryEventsRange(
 }
 
 /**
- * Get all registered events (using optimized server endpoint for better performance)
+ * Get all registered events (using get-events-range for efficiency)
  */
 export async function getAllRegistryEvents(): Promise<RegistryEvent[]> {
   try {
-    // Try using the optimized server endpoint first
-    try {
-      const url = `${SERVER_BASE}/api/optimized/events`;
-      const response = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const serverData = await response.json();
-        // Only use server data if it actually has events
-        if (serverData.events && serverData.events.length > 0) {
-          return serverData.events;
-        }
-      }
-    } catch (serverError) {
-      // Silently fall back to direct registry query
-    }
-
-    // Fallback to original method (direct registry query)
     const totalEvents = await getTotalEvents();
     
     if (totalEvents === 0) {
       return [];
     }
+
+    console.log(`📊 Total events in registry: ${totalEvents}`);
 
     const allEvents: RegistryEvent[] = [];
     const batchSize = 10; // Contract returns 10 events per call
@@ -254,10 +245,13 @@ export async function getAllRegistryEvents(): Promise<RegistryEvent[]> {
     // Fetch in batches of 10
     for (let startId = 1; startId <= totalEvents; startId += batchSize) {
       const endId = Math.min(startId + batchSize - 1, totalEvents);
+      console.log(`Fetching events ${startId} to ${endId}...`);
+      
       const batch = await getRegistryEventsRange(startId, endId);
       allEvents.push(...batch);
     }
 
+    console.log(`✅ Fetched ${allEvents.length} active events from registry`);
     return allEvents;
   } catch (error) {
     console.error('Error getting all registry events:', error);

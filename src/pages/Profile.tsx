@@ -18,13 +18,6 @@ import {
   Loader2
 } from "lucide-react";
 import { toast } from "sonner";
-import { dataStore } from "@/services/dataStore";
-import { getFullProfile } from "@/services/profileService";
-import { getUserTicketsFromIndexerCached } from "@/services/nftFetcher";
-import { callReadOnlyFunction, cvToValue } from '@stacks/transactions';
-import { StacksTestnet } from '@stacks/network';
-
-const network = new StacksTestnet();
 
 // Lazy load ProofOfFandomBadges component
 const ProofOfFandomBadges = lazy(() => import("@/components/ProofOfFandomBadges"));
@@ -37,83 +30,32 @@ const Profile = () => {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [balance, setBalance] = useState<string>("0");
-  const [ticketsOwned, setTicketsOwned] = useState<number>(0);
-  const [eventsAttended, setEventsAttended] = useState<number>(0);
-  const [userProfile, setUserProfile] = useState<any>(null);
 
   const walletAddress = wallet?.address || "Not connected";
+  const balance = "1,250.50"; // This would come from actual balance query
 
-  // Load real data from blockchain and dataStore
-  useEffect(() => {
-    const loadProfileData = async () => {
-      if (!wallet?.address) {
-        setIsLoading(false);
-        setStatsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      setStatsLoading(true);
-
-      try {
-        // Load user profile
-        const profile = await getFullProfile(wallet.address);
-        setUserProfile(profile);
-
-        // Load balance from blockchain
-        try {
-          const balanceResult = await callReadOnlyFunction({
-            contractAddress: 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE',
-            contractName: 'sip-010-trait-ft-standard',
-            functionName: 'get-balance',
-            functionArgs: [],
-            senderAddress: wallet.address,
-            network,
-          });
-          
-          const balanceValue = cvToValue(balanceResult);
-          if (balanceValue && typeof balanceValue === 'object' && 'value' in balanceValue) {
-            const microSTX = Number(balanceValue.value);
-            const stx = (microSTX / 1000000).toFixed(2);
-            setBalance(stx);
-          }
-        } catch (balErr) {
-          console.warn('Could not fetch balance:', balErr);
-          setBalance('0');
-        }
-
-        // Load tickets from dataStore or fetch
-        try {
-          const tickets = await getUserTicketsFromIndexerCached(wallet.address);
-          setTicketsOwned(tickets.length);
-          
-          // Count attended events (past events with used status)
-          const attended = tickets.filter((t: any) => t.status === 'used').length;
-          setEventsAttended(attended);
-        } catch (ticketErr) {
-          console.warn('Could not fetch tickets:', ticketErr);
-          setTicketsOwned(0);
-          setEventsAttended(0);
-        }
-
-      } catch (error) {
-        console.error('Error loading profile data:', error);
-      } finally {
-        setIsLoading(false);
-        setStatsLoading(false);
-      }
-    };
-
-    loadProfileData();
-  }, [wallet?.address]);
-
-  // Memoize stats with real data
+  // Memoize stats to prevent unnecessary re-renders
   const stats = useMemo(() => [
-    { label: "Events Attended", value: eventsAttended.toString(), color: "from-[#FE5C02] to-orange-600" },
-    { label: "Tickets Owned", value: ticketsOwned.toString(), color: "from-purple-500 to-purple-600" },
-    { label: "STX Balance", value: balance, color: "from-blue-500 to-blue-600" }
-  ], [eventsAttended, ticketsOwned, balance]);
+    { label: "Events Attended", value: "12", color: "from-[#FE5C02] to-orange-600" },
+    { label: "Tickets Owned", value: "8", color: "from-purple-500 to-purple-600" },
+    { label: "Events Created", value: "5", color: "from-blue-500 to-blue-600" }
+  ], []);
+
+  // Simulate initial data loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Simulate stats loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setStatsLoading(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleCopy = () => {
     if (wallet?.address) {
@@ -205,12 +147,7 @@ const Profile = () => {
           <div className="bg-gradient-to-br from-[#FE5C02]/10 to-purple-600/10 border border-[#FE5C02]/20 rounded-2xl md:rounded-xl p-5 md:p-6">
             <p className="text-gray-400 text-xs md:text-sm mb-2">Available Balance</p>
             <p className="text-3xl md:text-4xl font-bold text-[#FE5C02] mb-1">{balance} <span className="text-xl md:text-2xl">STX</span></p>
-            <p className="text-gray-400 text-xs md:text-sm">
-              ≈ ${(() => {
-                const balanceNum = parseFloat(balance.replace(',', ''));
-                return !isNaN(balanceNum) ? (balanceNum * 0.5).toFixed(2) : '0.00';
-              })()} USD
-            </p>
+            <p className="text-gray-400 text-xs md:text-sm">≈ ${(parseFloat(balance.replace(',', '')) * 0.5).toFixed(2)} USD</p>
           </div>
         </div>
         )}

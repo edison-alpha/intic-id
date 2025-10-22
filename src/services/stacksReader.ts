@@ -1,6 +1,6 @@
 /**
- * Stacks.js Contract Reader (Updated to use Express Server)
- * More reliable alternative to Hiro API for reading contract data, with server caching
+ * Stacks.js Contract Reader
+ * More reliable alternative to Hiro API for reading contract data
  */
 
 import { 
@@ -9,26 +9,12 @@ import {
   uintCV,
   ClarityValue
 } from '@stacks/transactions';
-import { StacksTestnet, StacksMainnet } from '@stacks/network';
+import { StacksTestnet } from '@stacks/network';
 
-const SERVER_BASE = import.meta.env.VITE_SERVER_BASE_URL || 'http://localhost:8000';
 const NETWORK = new StacksTestnet();
 
-// Global rate limiter to prevent 429 errors
-let lastCallTime = 0;
-const MIN_DELAY_MS = 500; // Minimum 500ms between calls
-
-const rateLimitedDelay = async () => {
-  const now = Date.now();
-  const elapsed = now - lastCallTime;
-  if (elapsed < MIN_DELAY_MS) {
-    await new Promise(resolve => setTimeout(resolve, MIN_DELAY_MS - elapsed));
-  }
-  lastCallTime = Date.now();
-};
-
 /**
- * Call read-only contract function using Stacks.js (with optional server caching)
+ * Call read-only contract function using Stacks.js
  */
 export const callReadOnlyContractFunction = async (
   contractAddress: string,
@@ -37,35 +23,6 @@ export const callReadOnlyContractFunction = async (
   functionArgs: ClarityValue[] = [],
   senderAddress?: string
 ): Promise<any> => {
-  // Apply rate limiting
-  await rateLimitedDelay();
-  
-  // Use server for caching if available
-  try {
-    const url = `${SERVER_BASE}/api/stacks/contract/${contractAddress}/${contractName}/call-read/${functionName}`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        // Convert ClarityValue to JSON format (not double-stringified)
-        functionArgs: functionArgs.map(arg => cvToJSON(arg)),
-        senderAddress: senderAddress || contractAddress,
-      }),
-    });
-
-    if (response.ok) {
-      return await response.json();
-    } else {
-      console.warn(`Server call failed (${response.status}), falling back to direct Stacks.js call`);
-    }
-  } catch (serverError) {
-    console.warn('Server call failed, falling back to direct Stacks.js call:', serverError);
-  }
-
-  // Fallback to direct Stacks.js call
   try {
     const options = {
       contractAddress,
@@ -368,34 +325,17 @@ export const getEventDetails = async (contractId: string) => {
 };
 
 /**
- * Get complete NFT ticket data using Stacks.js (with server optimization)
+ * Get complete NFT ticket data using Stacks.js
  * More reliable than Hiro API calls
  */
 export const getNFTTicketDataWithStacks = async (contractId: string) => {
-  // Try server endpoint first for optimized and cached data
-  try {
-    const url = `${SERVER_BASE}/api/stacks/nft-ticket/${contractId}`;
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (response.ok) {
-      return await response.json();
-    } else {
-      console.warn(`Server NFT data fetch failed (${response.status}), falling back to direct Stacks.js calls`);
-    }
-  } catch (serverError) {
-    console.warn('Server NFT data fetch failed, falling back to direct Stacks.js calls:', serverError);
-  }
-
-  // Fallback to direct Stacks.js calls
   try {
     // PRIORITY 1: Try get-event-details (NEW - returns full tuple)
     const eventDetails = await getEventDetails(contractId);
     
     if (eventDetails) {
+      console.log('✅ [Stacks.js] Got event details:', eventDetails);
+      
       // Parse kebab-case fields from Clarity tuple
       const totalSupply = eventDetails['total-supply'] || eventDetails.totalSupply;
       const ticketsSold = eventDetails['tickets-sold'] || eventDetails.ticketsSold;
@@ -436,6 +376,8 @@ export const getNFTTicketDataWithStacks = async (contractId: string) => {
     const eventInfo = await getEventInfo(contractId);
     
     if (eventInfo) {
+      console.log('⚠️ [Stacks.js] Using fallback get-event-info:', eventInfo);
+      
       // Safe access for kebab-case fields (Clarity style)
       const totalSupply = eventInfo['total-supply'] || eventInfo.totalSupply;
       const sold = eventInfo.sold;

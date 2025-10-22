@@ -29,6 +29,7 @@ class RequestManager {
    */
   clearCache() {
     this.cache.clear();
+    console.log('🧹 Request cache cleared');
   }
 
   /**
@@ -107,6 +108,7 @@ class RequestManager {
     // Check cache first
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.timestamp < cacheTTL) {
+      console.log(`💾 [RequestManager] Cache hit: ${key.substring(0, 60)}...`);
       return cached.data as T;
     }
 
@@ -114,6 +116,7 @@ class RequestManager {
     if (deduplicate) {
       const pending = this.pendingRequests.get(key);
       if (pending) {
+        console.log(`⏳ [RequestManager] Deduplicating request: ${key.substring(0, 60)}...`);
         return pending as Promise<T>;
       }
     }
@@ -193,6 +196,8 @@ class RequestManager {
       config?: RequestConfig;
     }>
   ): Promise<T[]> {
+    console.log(`📦 [RequestManager] Batching ${requests.length} requests`);
+
     // Process requests with staggered timing to avoid rate limits
     const results: T[] = [];
 
